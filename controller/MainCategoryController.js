@@ -1,4 +1,4 @@
-const Maincategories = require('../Models/mainCategory');
+const Maincategories = require('../models/mainCategory');
 const asyncHandler = require('express-async-handler');
 
 

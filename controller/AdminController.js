@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const admins=require('../Models/adminModel')
+const admins=require('../models/adminModel')
 const bcrypt = require('bcrypt');
 
 
