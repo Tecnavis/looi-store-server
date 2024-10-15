@@ -81,6 +81,7 @@ router.delete('/delete-wishlist/:productId',jwtMiddleware,wishlistController.del
 // ------user-------
 router.post('/user-register',userController.registerUser);
 router.post('/user-login',userController.loginUser);
+router.put('/update-address/:userId',jwtMiddleware,userController.updateUserAddress)
 
 
 

@@ -553,7 +553,7 @@ exports.deleteProduct = asyncHandler(async (req, res) => {
 });
 
 
-const NEW_ARRIVAL_DAYS = 6;
+const NEW_ARRIVAL_DAYS = 10;
 
 exports.getNewArrivals = asyncHandler(async (req, res) => {
   try {

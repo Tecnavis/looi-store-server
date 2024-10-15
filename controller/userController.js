@@ -66,7 +66,7 @@ exports.loginUser = async (req, res) => {
         }
 
         // Generate JWT token
-        const token = jwt.sign({ userId: existingUser._id }, process.env.JWT_SECRET, { expiresIn: '2h' });
+        const token = jwt.sign({ userId: existingUser._id ,username: existingUser.username,email: existingUser.email,}, process.env.JWT_SECRET, { expiresIn: '2h' });
         console.log("Login successful, token generated:", token);
 
         // Send back user details and token
@@ -84,38 +84,73 @@ exports.loginUser = async (req, res) => {
     }
 };
 
+// exports.updateUserAddress = async (req, res) => {
+//     const { userId } = req.params;
+//     const { firstName, lastName, houseBuilding, streetArea, landmark, postalCode, cityDistrict, phoneNumber } = req.body;
+  
+//     try {
+//       // Find user by ID and update their address
+//       const updatedUser = await User.findByIdAndUpdate(
+//         userId,
+//         {
+//           $set: {
+//             address: {
+//               firstName,
+//               lastName,
+//               houseBuilding,
+//               streetArea,
+//               landmark,
+//               postalCode,
+//               cityDistrict,
+//               phoneNumber
+//             }
+//           }
+//         },
+//         { new: true, runValidators: true } // Return the updated document and validate inputs
+//       );
+  
+//       if (!updatedUser) {
+//         return res.status(404).json({ message: 'User not found' });
+//       }
+  
+//       res.status(200).json({ message: 'Address updated successfully', user: updatedUser });
+//     } catch (error) {
+//       res.status(500).json({ message: 'Server error', error: error.message });
+//     }
+//   };
+  
+
 exports.updateUserAddress = async (req, res) => {
-    const { userId } = req.params; // Assuming userId is passed as a route param
-    const { firstName, lastName, houseBuilding, streetArea, landmark, postalCode, cityDistrict, phoneNumber } = req.body;
-  
-    try {
-      // Find user by ID and update their address
-      const updatedUser = await User.findByIdAndUpdate(
-        userId,
-        {
-          $set: {
-            address: {
-              firstName,
-              lastName,
-              houseBuilding,
-              streetArea,
-              landmark,
-              postalCode,
-              cityDistrict,
-              phoneNumber
-            }
+  const { userId } = req.params; // Get the userId from the route parameter
+  const { firstName, lastName, houseBuilding, streetArea, landmark, postalCode, cityDistrict, phoneNumber } = req.body;
+
+  try {
+    // Find user by ID and update their address
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      {
+        $set: {
+          address: {
+            firstName,
+            lastName,
+            houseBuilding,
+            streetArea,
+            landmark,
+            postalCode,
+            cityDistrict,
+            phoneNumber
           }
-        },
-        { new: true, runValidators: true } // Return the updated document and validate inputs
-      );
-  
-      if (!updatedUser) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-  
-      res.status(200).json({ message: 'Address updated successfully', user: updatedUser });
-    } catch (error) {
-      res.status(500).json({ message: 'Server error', error: error.message });
+        }
+      },
+      { new: true, runValidators: true } // Return the updated document and validate inputs
+    );
+
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
     }
-  };
-  
+
+    res.status(200).json({ message: 'Address updated successfully', user: updatedUser });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
