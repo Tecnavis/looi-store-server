@@ -2,7 +2,7 @@ const express=require('express')
 const router=new express.Router()
 
 
-const  jwtMiddleware  = require('../Middleware/jwtMiddleware');
+const  jwtMiddleware  = require('../middleware/jwtMiddleware');
 const adminController=require('../controller/AdminController')
 const mainCategoryController=require('../controller/MainCategoryController');
 const categoryController=require('../controller/categoryController');
