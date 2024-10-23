@@ -3,45 +3,72 @@ const asyncHandler = require('express-async-handler');
 // const MainCategories = require('../models/mainCategory');
 
 
+// exports.postSubCategories = async (req, res) => {
+//     const { subcategoryname, maincategory, category } = req.body;
+
+//     if (!subcategoryname || !maincategory || !category) {
+//         return res.status(400).json({
+//             message: 'Subcategory name, main category, and category are required',
+//         });
+//     }
+//     try {
+//         // Create the new subcategory
+//         const newSubcategory = await Subcategories.create({
+//             subcategoryname: subcategoryname,
+//             maincategory: maincategory,
+//             category: category,
+//         });
+
+//         res.status(200).json({
+//             message: 'Sub Category posted successfully',
+//             subcategory: newSubcategory,
+//         });
+//     } catch (err) {
+//         console.error('Error posting subcategory:', err);
+//         res.status(500).json({
+//             message: 'An error occurred while posting subcategory',
+//             error: err.message,
+//         });
+//     }
+// };
 exports.postSubCategories = async (req, res) => {
     const { subcategoryname, maincategory, category } = req.body;
 
-    // Validation: Check if all required fields are provided
+    // Check for missing fields
     if (!subcategoryname || !maincategory || !category) {
         return res.status(400).json({
             message: 'Subcategory name, main category, and category are required',
         });
     }
+    // Check for uploaded image files
+    if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ message: 'No subcategory images uploaded' });
+    }
+
+    const imagePaths = req.files.map(file => file.filename); // Assuming you're using multer or a similar middleware for file uploads
 
     try {
-        // Check if subcategory already exists (optional)
-        // const existingSubcategory = await Subcategories.findOne({ subcategoryname });
-        // if (existingSubcategory) {
-        //     return res.status(409).json({
-        //         message: 'Subcategory already exists',
-        //     });
-        // }
-
-        // Create the new subcategory
+        // Create the new subcategory with image paths
         const newSubcategory = await Subcategories.create({
             subcategoryname: subcategoryname,
             maincategory: maincategory,
             category: category,
+            images: imagePaths, // Assuming your Subcategories schema has an 'images' field
         });
 
+        // Respond with success and the created subcategory
         res.status(200).json({
-            message: 'Sub Category posted successfully',
+            message: 'Subcategory posted successfully',
             subcategory: newSubcategory,
         });
     } catch (err) {
         console.error('Error posting subcategory:', err);
         res.status(500).json({
-            message: 'An error occurred while posting subcategory',
+            message: 'An error occurred while posting the subcategory',
             error: err.message,
         });
     }
 };
-
 
 exports.getSubCategories = async (req, res) => {
     try {

@@ -1,7 +1,6 @@
 const express=require('express')
 const router=new express.Router()
 
-
 const  jwtMiddleware  = require('../middleware/jwtMiddleware');
 const adminController=require('../controller/AdminController')
 const mainCategoryController=require('../controller/MainCategoryController');
@@ -9,13 +8,13 @@ const categoryController=require('../controller/categoryController');
 const subCategoryController=require('../controller/subCategoryController');
 const productController=require('../controller/productController')
 const bannerController=require('../controller/bannerController')
+const AdBannerController=require('../controller/AdController')
 
 const cartController=require('../controller/cartContoller');
 const wishlistController=require('../controller/WishlistController')
 const userController=require('../controller/userController')
 
 const upload = require('../config/multerconfig');
-
 
 router.post('/admin-register',adminController.registerAdmin);
 
@@ -31,7 +30,7 @@ router.delete('/delete-maincategory/:id',jwtMiddleware, mainCategoryController.d
 router.get('/maincategoriescount',jwtMiddleware, mainCategoryController.countMaincategories);
 
 // category
-router.post('/add-category', jwtMiddleware, categoryController.postCategories);
+router.post('/add-category',jwtMiddleware,upload.array('images',1),categoryController.postCategories);
 router.get('/get-category',  categoryController.getCategories);
 router.get('/get-categoryid/:id', jwtMiddleware, categoryController.getCategoriesById);
 router.put('/update-categoryid/:id', jwtMiddleware,categoryController.updateCategoriesById);
@@ -39,14 +38,12 @@ router.delete('/delete-category/:id',jwtMiddleware, categoryController.deleteCat
 router.get('/categoriescount',jwtMiddleware,categoryController.countCategories);
 
 // sub-category
-router.post('/add-subcategory',jwtMiddleware,subCategoryController.postSubCategories);
+router.post('/add-subcategory',jwtMiddleware,upload.array('images',1),subCategoryController.postSubCategories);
 router.get('/get-subcategory', subCategoryController.getSubCategories);
 router.get('/get-subcategoryid/:id', jwtMiddleware,subCategoryController.getCategoriesById);
 router.put('/update-subcategoryid/:id', jwtMiddleware,subCategoryController.updateCategoriesById);
 router.delete('/delete-subcategory/:id',jwtMiddleware,subCategoryController.deleteCategoriesById);
 router.get('/subcategoriescount',jwtMiddleware,subCategoryController.countSubCategories);
-
-// products
 
 // router.post('/add-product',jwtMiddleware,upload.array('images',4),productController.addProduct);
 router.post('/add-product',jwtMiddleware,upload.any(),productController.addProduct);
@@ -55,6 +52,7 @@ router.get('/get-productid/:id',productController.getProductById);
 router.put('/update-productid/:id',jwtMiddleware,upload.any(),productController.updateProduct);
 router.delete('/delete-product/:id',jwtMiddleware,productController.deleteProduct);
 router.get('/newarrival-product',productController.getNewArrivals);
+router.get('/similar-product',productController.getProductAndSimilar);
 
 // banner 
 
@@ -64,6 +62,10 @@ router.get('/get-bannerid/:id',jwtMiddleware,bannerController.getBannerById);
 // router.put('/update-bannerid/:id',jwtMiddleware,upload.array('images'),bannerController.putBannerById);
 router.delete('/delete-banner/:id',jwtMiddleware,bannerController.deleteBannerById);
 
+// Adbanner
+router.post('/add-adbanner', jwtMiddleware, upload.single('banners'),AdBannerController.addBanner);
+router.get('/get-adbanner',AdBannerController.getBanner);
+router.delete('/delete-adbanner/:id',jwtMiddleware,AdBannerController.deleteBanner);
 
 // cart
 router.post('/cart/:productId',jwtMiddleware,cartController.addToCart);
@@ -75,15 +77,20 @@ router.delete('/delete-cart/:productId',jwtMiddleware,cartController.deleteCart)
 router.post('/add-wishlist/:productId',jwtMiddleware,wishlistController.addToWishlist);
 router.get('/get-wishlist',jwtMiddleware,wishlistController.getWishlist);
 router.delete('/delete-wishlist/:productId',jwtMiddleware,wishlistController.deleteWishlistProduct);
-
 // router.post('/move-wishlist-to-cart/:productId',jwtMiddleware,wishlistController.moveWishlistToCart);
 
 // ------user-------
 router.post('/user-register',userController.registerUser);
 router.post('/user-login',userController.loginUser);
-router.put('/update-address/:userId',jwtMiddleware,userController.updateUserAddress)
+router.post('/add-address/:userId',jwtMiddleware,userController.addUserAddress);
 
+router.get('/user-details/:userId',jwtMiddleware,userController.getUserDetails);
+router.get('/all-users',userController.getAllUsers);
+router.delete('/delete-user/:userId/address/:addressId', jwtMiddleware, userController.deleteUserAddress);
+router.put('/update-user/:userId/address/:addressId', jwtMiddleware, userController.editUserAddress);
 
+router.post('/forgot-password',userController.resetPasswordRequest);
+router.post('/reset-password/:token',userController.resetPassword);
 
 
 module.exports=router; 

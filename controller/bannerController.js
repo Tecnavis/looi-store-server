@@ -1,32 +1,6 @@
 const asyncHandler = require('express-async-handler');
 const BannerModel = require('../models/bannerModel');
 
-// exports.postBanner = asyncHandler(async (req, res) => {
-
-//   if (!req.files || req.files.length === 0) {
-//     return res.status(400).json({ message: 'No banner images uploaded' });
-//   }
-
-//   const imagePaths = req.files.map(file => file.filename);
-
-//   try {
-//     // Create a new banner instance
-//     const newBanner = new BannerModel({
-//       images: imagePaths 
-//     });
-
-//     await newBanner.save();
-
-//     return res.status(200).json({
-//       message: 'Banners posted successfully',
-//       banner: newBanner
-//     });
-//   } catch (error) {
-//     console.error(error);
-//     return res.status(500).json({ message: 'Error posting banners', error });
-//   }
-// });
-
 
 exports.postBanner = asyncHandler(async (req, res) => {
   // Check for files
@@ -71,28 +45,6 @@ exports.postBanner = asyncHandler(async (req, res) => {
   }
 });
 
-  
-// GET - Fetch all banners
-// exports.getBanner = asyncHandler(async (req, res) => {
-//     try {
-//       // Fetch all banners from the database
-//       const banners = await BannerModel.find();
-  
-//       // Check if banners exist
-//       if (!banners || banners.length === 0) {
-//         return res.status(404).json({ message: 'No banners found' });
-//       }
-  
-//       // Send a success response with the fetched banners
-//       res.status(200).json({
-//         message: 'Banners retrieved successfully',
-//         banners
-//       });
-//     } catch (error) {
-//       console.error('Error fetching banners:', error);
-//       res.status(500).json({ message: 'An error occurred while fetching banners', error });
-//     }
-//   });
 
 
 exports.getBanner = asyncHandler(async (req, res) => {

@@ -5,6 +5,7 @@ const mongoose = require('mongoose');
 const categoriesSchema = new mongoose.Schema({
     name: { type: String, required: true }, // Category name
     maincategoriesData: { type: mongoose.Schema.Types.ObjectId, ref: 'MaincategoriesData', required: true }, // Reference to MaincategoriesData
+    images: { type: [String], required: false },
     createdAt: { type: Date, default: Date.now } // Auto add created date
 });
 

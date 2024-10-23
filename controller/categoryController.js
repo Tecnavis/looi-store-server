@@ -1,27 +1,65 @@
 const CategoryModel = require('../models/categoryModel');
 const asyncHandler = require('express-async-handler');
 
+// exports.postCategories = async (req, res) => {
+//     const { name, maincategoriesData } = req.body;
+   
+//     if (!name) {
+//         return res.status(400).send('Category name is required');
+//     }
+//     try {
+      
+//         const existingCategory = await CategoryModel.findOne({
+//             name: { $regex: new RegExp(`^${name}$`, 'i') }
+//         });
+
+//         // Create a new category if it does not exist
+//         const newCategory = await CategoryModel.create({
+//             name: name,
+//             maincategoriesData: maincategoriesData
+//         });
+
+//         res.status(200).json({
+//             message: 'Category posted successfully',
+//             category: newCategory
+//         });
+//     } catch (err) {
+//         console.error(err);
+//         res.status(500).send(`An error occurred while posting category: ${err.message}`);
+//     }
+// };
+
+
 exports.postCategories = async (req, res) => {
     const { name, maincategoriesData } = req.body;
 
-    // Validation: Check if the 'name' field is provided
+    // Check for missing fields
     if (!name) {
         return res.status(400).send('Category name is required');
     }
+
+    // Check for uploaded image files
+    if (!req.files || req.files.length === 0) {
+        return res.status(400).json({ message: 'No category images uploaded' });
+    }
+
+    const imagePaths = req.files.map(file => file.filename); // Assuming you're using multer for file uploads
+
     try {
-        // Check if the category name already exists (case-insensitive)
+        // Check if the category already exists
         const existingCategory = await CategoryModel.findOne({
             name: { $regex: new RegExp(`^${name}$`, 'i') }
         });
 
-        // if (existingCategory) {
-        //     return res.status(409).send('Category already exists');
-        // }
+        if (existingCategory) {
+            return res.status(400).json({ message: 'Category already exists' });
+        }
 
         // Create a new category if it does not exist
         const newCategory = await CategoryModel.create({
             name: name,
-            maincategoriesData: maincategoriesData
+            maincategoriesData: maincategoriesData,
+            images: imagePaths // Assuming your Category schema has an 'images' field
         });
 
         res.status(200).json({
@@ -29,11 +67,12 @@ exports.postCategories = async (req, res) => {
             category: newCategory
         });
     } catch (err) {
-        console.error(err);
-        res.status(500).send(`An error occurred while posting category: ${err.message}`);
+        console.error('Error posting category:', err);
+        res.status(500).json({
+            message: `An error occurred while posting the category: ${err.message}`,
+        });
     }
 };
-
 
 exports.getCategories = async (req, res) => {
     try {

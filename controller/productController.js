@@ -6,94 +6,6 @@ const generateProductId = () => {
   return `PROD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`; // Generates an ID like "PROD-ABCD12345"
 };
 
-// this is save image name
-// exports.addProduct = asyncHandler(async (req, res) => {
-//   // console.log('Received files:', req.files.map(f => ({ name: f.originalname, fieldname: f.fieldname })));
-//   // console.log('Received body:', req.body);
-
-//   // Check if files are uploaded
-//   if (!req.files || req.files.length === 0) {
-//     return res.status(400).json({ message: 'No images uploaded' });
-//   }
-
-//     // Extract the cover image
-//     const coverImageFile = req.files.find(file => file.fieldname === 'coverImage');
-//     if (!coverImageFile) {
-//       return res.status(400).json({ message: 'Cover image is required' });
-//     }
-
-//   const {
-//     // productId,
-//     name,
-//     price,
-//     sizes, // This will now be a JSON string
-//     description,
-//     countryOfOrigin,
-//     manufacturer,
-//     packedBy,
-//     commodity,
-//     maincategory,
-//     subcategory
-//   } = req.body;
-
-//   try {
-//     // Parse the sizes JSON string
-//     const sizeData = JSON.parse(sizes);
-//     // console.log('Parsed size data:', JSON.stringify(sizeData, null, 2));
-
-//     // Create the sizes array structure with images
-//     const formattedSizes = sizeData.map((size) => {
-//       return {
-//         size: size.size,
-//         colors: size.colors.map((color) => {
-//           // Match files based on their fieldnames
-//           const colorImages = req.files
-//             .filter(file => file.fieldname === 'productImages' && 
-//                             file.originalname.startsWith(`size_${size.size}_color_${color.color}_image_`))
-//             .map(file => file.filename); // Save the filenames
-
-//           // console.log(`Images for size ${size.size}, color ${color.color}:`, colorImages);
-
-//           return {
-//             color: color.color,
-//             stock: color.stock,
-//             images: colorImages
-//           };
-//         })
-//       };
-//     });
-
-//     // console.log('Formatted sizes:', JSON.stringify(formattedSizes, null, 2));
-   
-
-//     // Create a new product instance
-//     const newProduct = new Product({
-//       productId: generateProductId(), // Automatically generate product ID
-//       name,
-//       price,
-//       coverImage: coverImageFile.filename, // Add coverImage filename
-//       sizes: formattedSizes,
-//       description,
-//       countryOfOrigin,
-//       manufacturer,
-//       packedBy,
-//       commodity,
-//       maincategory,
-//       subcategory
-//     });
-
-//     await newProduct.save();
-
-//     return res.status(200).json({
-//       message: 'Product added successfully',
-//       product: newProduct
-//     });
-//   } catch (error) {
-//     console.error('Error adding product:', error);
-//     return res.status(500).json({ message: 'Error adding product', error: error.message });
-//   }
-// });
-
 exports.addProduct = asyncHandler(async (req, res) => {
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ message: 'No images uploaded' });
@@ -103,9 +15,10 @@ exports.addProduct = asyncHandler(async (req, res) => {
   if (!coverImageFile) {
     return res.status(400).json({ message: 'Cover image is required' });
   }
-
+  
   const {
     name,
+    oldPrice,
     price,
     sizes,
     description,
@@ -134,6 +47,7 @@ exports.addProduct = asyncHandler(async (req, res) => {
     const newProduct = new Product({
       productId: generateProductId(),
       name,
+      oldPrice,
       price,
       coverImage: coverImageFile.filename,
       sizes: formattedSizes,
@@ -165,8 +79,9 @@ exports.addProduct = asyncHandler(async (req, res) => {
 exports.getAllProducts = asyncHandler(async (req, res) => {
   try {
     // Retrieve all products from the database
-    const products = await Product.find();
-
+    const products = await Product.find()
+  
+    
     // Check if products were found
     if (!products || products.length === 0) {
       return res.status(404).json({ message: 'No products found' });
@@ -188,7 +103,8 @@ exports.getProductById = asyncHandler(async (req, res) => {
 
   try {
     
-    const product = await Product.findById(id);
+    const product = await Product.findById(id)
+    .populate('subcategory');
 
   
     if (!product) {
@@ -205,238 +121,7 @@ exports.getProductById = asyncHandler(async (req, res) => {
   }
 });
 
-// first code
-// exports.updateProduct = asyncHandler(async (req, res) => {
-//   const { id } = req.params;  // Extract product ID from request parameters
 
-//   // Extract the updated product details from req.body
-//   const {
-//     productId,
-//     name,
-//     price,
-//     size,
-//     color,
-//     description,
-//     countryOfOrigin,
-//     manufacturer,
-//     packedBy,
-//     commodity,
-//      stock,
-//     maincategory,
-//     subcategory
-//   } = req.body;
-
-//   console.log(req.body, 'this is the req body');
-
-//   try {
-//     // Prepare the updated fields, including images if uploaded
-//     const updateFields = {
-//       productId,
-//       name,
-//       price,
-//       size,
-//       color,
-//       description,
-//       countryOfOrigin,
-//       manufacturer,
-//       packedBy,
-//       commodity,
-//        stock,
-//       maincategory,
-//       subcategory,
-//       ...(req.files ? { images: req.files.map(file => file.filename) } : {}) // Handle uploaded images
-//     };
-
-//     // Update the product by ID
-//     const updatedProduct = await Product.findByIdAndUpdate(id, updateFields, { new: true, runValidators: true });
-
-//     console.log('Updated Product:', updatedProduct); // Log updated product
-
-//     if (!updatedProduct) {
-//       return res.status(404).json({ message: 'Product not found' });
-//     }
-
-//     return res.status(200).json({
-//       message: 'Product updated successfully',
-//       product: updatedProduct
-//     });
-//   } catch (error) {
-//     console.error('Error during update:', error); // Log any errors
-//     return res.status(500).json({ message: 'Error updating product', error });
-//   }
-// });
-// in this code we are not updating images,cover image
-// exports.updateProduct = asyncHandler(async (req, res) => {
-//   const { id } = req.params;  // Extract product ID from request parameters
-
-//   // Extract the updated product details from req.body
-//   const {
-//     name,
-//     price,
-//     sizes, // This could be a JSON string or an object
-//     description,
-//     countryOfOrigin,
-//     manufacturer,
-//     packedBy,
-//     commodity,
-//     maincategory,
-//     subcategory
-//   } = req.body;
-
-//   try {
-//     // Check if sizes is a JSON string, if not, assume it's an object
-//     let formattedSizes = [];
-//     if (sizes) {
-//       const sizeData = typeof sizes === 'string' ? JSON.parse(sizes) : sizes; // Check if sizes is a string and parse it if necessary
-
-//       // Create the sizes array structure with images
-//       formattedSizes = sizeData.map((size) => {
-//         return {
-//           size: size.size,
-//           colors: size.colors.map((color) => {
-//             // Safely check if req.files exists and filter only if there are files uploaded
-//             const colorImages = req.files ? req.files
-//               .filter(file => file.fieldname === 'productImages' && 
-//                               file.originalname.startsWith(`size_${size.size}_color_${color.color}_image_`))
-//               .map(file => file.filename) : [];
-
-//             return {
-//               color: color.color,
-//               stock: color.stock,
-//               images: colorImages.length > 0 ? colorImages : color.images // Keep existing images if none are uploaded
-//             };
-//           })
-//         };
-//       });
-//     }
-
-//     // Prepare the updated fields, including sizes and images if uploaded
-//     const updateFields = {
-//       name,
-//       price,
-//       sizes: formattedSizes.length > 0 ? formattedSizes : undefined, // Update sizes if provided
-//       description,
-//       countryOfOrigin,
-//       manufacturer,
-//       packedBy,
-//       commodity,
-//       maincategory,
-//       subcategory,
-//       ...(req.files ? { images: req.files.map(file => file.filename) } : {}) // Handle other uploaded images if any
-//     };
-
-//     // Remove undefined fields (to avoid overwriting existing data with 'undefined')
-//     Object.keys(updateFields).forEach(key => {
-//       if (updateFields[key] === undefined) delete updateFields[key];
-//     });
-
-//     // Update the product by ID
-//     const updatedProduct = await Product.findByIdAndUpdate(id, updateFields, { new: true, runValidators: true });
-
-//     if (!updatedProduct) {
-//       return res.status(404).json({ message: 'Product not found' });
-//     }
-
-//     return res.status(200).json({
-//       message: 'Product updated successfully',
-//       product: updatedProduct
-//     });
-//   } catch (error) {
-//     console.error('Error during update:', error); // Log any errors
-//     return res.status(500).json({ message: 'Error updating product', error: error.message });
-//   }
-// });
-// this save cover and array iamge but in diifernt format blob
-// exports.updateProduct = asyncHandler(async (req, res) => {
-//   const { id } = req.params;
-  
-//   const {
-//     name,
-//     price,
-//     sizes,
-//     description,
-//     countryOfOrigin,
-//     manufacturer,
-//     packedBy,
-//     commodity,
-//     maincategory,
-//     subcategory
-//   } = req.body;
-
-//   try {
-//     // Handle sizes and color images
-//     let formattedSizes = [];
-//     if (sizes) {
-//       const sizeData = typeof sizes === 'string' ? JSON.parse(sizes) : sizes;
-      
-//       formattedSizes = sizeData.map((size) => {
-//         return {
-//           size: size.size,
-//           colors: size.colors.map((color) => {
-//             // Handle color-specific images
-//             const colorImages = req.files ? req.files
-//               .filter(file => file.fieldname.startsWith(`size_${size.size}_color_${color.color}_image_`))
-//               .map(file => file.filename) : [];
-            
-//             return {
-//               color: color.color,
-//               stock: color.stock,
-//               images: colorImages.length > 0 ? colorImages : color.images
-//             };
-//           })
-//         };
-//       });
-//     }
-
-//     // Handle cover image
-//     let coverImage;
-//     if (req.files && req.files.find(file => file.fieldname === 'coverImage')) {
-//       coverImage = req.files.find(file => file.fieldname === 'coverImage').filename;
-//     }
-
-//     // Prepare update fields
-//     const updateFields = {
-//       name,
-//       price,
-//       sizes: formattedSizes.length > 0 ? formattedSizes : undefined,
-//       description,
-//       countryOfOrigin,
-//       manufacturer,
-//       packedBy,
-//       commodity,
-//       maincategory,
-//       subcategory,
-//       ...(coverImage && { coverImage }) // Only add coverImage if it exists
-//     };
-
-//     // Remove undefined fields
-//     Object.keys(updateFields).forEach(key => {
-//       if (updateFields[key] === undefined) delete updateFields[key];
-//     });
-
-//     // Update the product
-//     const updatedProduct = await Product.findByIdAndUpdate(
-//       id, 
-//       updateFields, 
-//       { new: true, runValidators: true }
-//     );
-
-//     if (!updatedProduct) {
-//       return res.status(404).json({ message: 'Product not found' });
-//     }
-
-//     return res.status(200).json({
-//       message: 'Product updated successfully',
-//       product: updatedProduct
-//     });
-//   } catch (error) {
-//     console.error('Error during update:', error);
-//     return res.status(500).json({ 
-//       message: 'Error updating product', 
-//       error: error.message 
-//     });
-//   }
-// });
 
 exports.updateProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
@@ -564,7 +249,8 @@ exports.getNewArrivals = asyncHandler(async (req, res) => {
     // Query to find products created within the last 30 days and sort by newest
     const newArrivals = await Product.find({
       createdAt: { $gte: thirtyDaysAgo }
-    }).sort({ createdAt: -1 }); // Sort by most recent
+    }).sort({ createdAt: -1 })
+    .populate('subcategory');
 
     // Check if any new products are found
     if (!newArrivals || newArrivals.length === 0) {
@@ -579,6 +265,40 @@ exports.getNewArrivals = asyncHandler(async (req, res) => {
   } catch (error) {
     // Handle errors
     return res.status(500).json({ message: 'Error retrieving new arrivals', error });
+  }
+});
+
+
+
+// simlar products
+
+exports.getProductAndSimilar = asyncHandler(async (req, res) => {
+  const { id } = req.params; // Get the product ID from the request params
+
+  try {
+    // Step 1: Find the clicked product by ID and populate subcategory
+    const product = await Product.findById(id).populate('subcategory');
+
+    // If the product is not found
+    if (!product) {
+      return res.status(404).json({ message: 'Product not found' });
+    }
+
+    // Step 2: Find similar products by subcategory
+    const similarProducts = await Product.find({
+      subcategory: product.subcategory._id, // Use the subcategory of the clicked product
+      _id: { $ne: product._id }, // Exclude the current product
+    }).limit(5); // Optional: limit the number of similar products returned
+
+    // Step 3: Return the product and similar products
+    return res.status(200).json({
+      message: 'Product and similar products retrieved successfully',
+      product,           // The clicked product
+      similarProducts,   // List of similar products
+    });
+  } catch (error) {
+    // Handle errors
+    return res.status(500).json({ message: 'Error retrieving similar products', error });
   }
 });
 

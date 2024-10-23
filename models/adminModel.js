@@ -16,7 +16,9 @@ const adminSchema = new mongoose.Schema({
     createdAt: {
       type: Date,
       default: Date.now
-    }
+    },
+    resetPasswordToken: { type: String },
+    resetPasswordExpire: { type: Date },
   });
    
   const admins=mongoose.model('admin',adminSchema)
