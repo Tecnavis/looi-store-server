@@ -29,7 +29,6 @@ const asyncHandler = require('express-async-handler');
 //     }
 // };
 
-
 exports.postCategories = async (req, res) => {
     const { name, maincategoriesData } = req.body;
 
@@ -42,7 +41,6 @@ exports.postCategories = async (req, res) => {
     if (!req.files || req.files.length === 0) {
         return res.status(400).json({ message: 'No category images uploaded' });
     }
-
     const imagePaths = req.files.map(file => file.filename); // Assuming you're using multer for file uploads
 
     try {

@@ -2,7 +2,6 @@ const Subcategories = require('../models/subCategoryModel');
 const asyncHandler = require('express-async-handler');
 // const MainCategories = require('../models/mainCategory');
 
-
 // exports.postSubCategories = async (req, res) => {
 //     const { subcategoryname, maincategory, category } = req.body;
 

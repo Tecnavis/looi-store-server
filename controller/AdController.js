@@ -1,7 +1,6 @@
 const AdBannerModel=require('../models/adModel')
 const asyncHandler = require('express-async-handler');
 
-
 // post
 exports.addBanner = asyncHandler(async (req, res) => {
     try {
@@ -24,8 +23,6 @@ exports.addBanner = asyncHandler(async (req, res) => {
         res.status(500).json({ message: "Error adding banner", error: error.message });
     }
 });
-
-
 
 // getBanner
 exports.getBanner = asyncHandler(async (req, res) => {

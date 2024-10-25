@@ -9,6 +9,7 @@ const subCategoryController=require('../controller/subCategoryController');
 const productController=require('../controller/productController')
 const bannerController=require('../controller/bannerController')
 const AdBannerController=require('../controller/AdController')
+const AddPrint=require('../controller/printController')
 
 const cartController=require('../controller/cartContoller');
 const wishlistController=require('../controller/WishlistController')
@@ -66,6 +67,11 @@ router.delete('/delete-banner/:id',jwtMiddleware,bannerController.deleteBannerBy
 router.post('/add-adbanner', jwtMiddleware, upload.single('banners'),AdBannerController.addBanner);
 router.get('/get-adbanner',AdBannerController.getBanner);
 router.delete('/delete-adbanner/:id',jwtMiddleware,AdBannerController.deleteBanner);
+
+// Add print
+router.post('/add-print', jwtMiddleware, upload.single('banners'),AddPrint.addPrint);
+router.get('/get-print',AddPrint.getPrint);
+router.delete('/delete-print/:id',jwtMiddleware,AddPrint.deletePrint);
 
 // cart
 router.post('/cart/:productId',jwtMiddleware,cartController.addToCart);
