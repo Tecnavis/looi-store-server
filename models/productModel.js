@@ -1,4 +1,3 @@
-
 const mongoose = require('mongoose');
 const { v4: uuidv4 } = require('uuid');
 
@@ -8,7 +7,6 @@ const productSchema = new mongoose.Schema({
     required: true,
     unique: true, // Ensure that productId is unique
     default: uuidv4, // Automatically generate a UUID
-  
   },
   name: {
     type: String,
@@ -18,7 +16,7 @@ const productSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
-  price: {
+  price:{
     type: Number,
     required: true,
   },
@@ -94,7 +92,6 @@ productSchema.pre('save', function (next) {
 
   // Set the totalStock field
   this.totalStock = totalStock;
-
   next();
 });
 

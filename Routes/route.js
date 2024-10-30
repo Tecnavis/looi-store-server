@@ -14,6 +14,9 @@ const AddPrint=require('../controller/printController')
 const cartController=require('../controller/cartContoller');
 const wishlistController=require('../controller/WishlistController')
 const userController=require('../controller/userController')
+const razorpayController=require('../controller/razorpayController')
+const orderController=require('../controller/orderController')
+const invoiceController=require('../controller/invoiceController')
 
 const upload = require('../config/multerconfig');
 
@@ -88,6 +91,7 @@ router.delete('/delete-wishlist/:productId',jwtMiddleware,wishlistController.del
 // ------user-------
 router.post('/user-register',userController.registerUser);
 router.post('/user-login',userController.loginUser);
+router.get('/total-users', userController.getUserCount);
 router.post('/add-address/:userId',jwtMiddleware,userController.addUserAddress);
 
 router.get('/user-details/:userId',jwtMiddleware,userController.getUserDetails);
@@ -97,6 +101,19 @@ router.put('/update-user/:userId/address/:addressId', jwtMiddleware, userControl
 
 router.post('/forgot-password',userController.resetPasswordRequest);
 router.post('/reset-password/:token',userController.resetPassword);
+
+// payment
+router.post('/order',jwtMiddleware,razorpayController.order);
+router.post('/verify-payment',jwtMiddleware,razorpayController.validate);
+
+router.post('/postOrder',jwtMiddleware,orderController.createOrder);
+router.get('/getOrders',orderController.getAllOrders);
+router.get('/getOrders/:orderId',jwtMiddleware,orderController.getOrderById);
+router.get('/getordercount',jwtMiddleware,orderController.getTotalOrderCount);
+
+router.get('/invoice/:orderId',jwtMiddleware,invoiceController.generateInvoice);
+
+
 
 
 module.exports=router; 

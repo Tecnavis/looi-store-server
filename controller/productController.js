@@ -1,6 +1,7 @@
 
 const Product = require('../models/productModel'); 
 const asyncHandler = require('express-async-handler');
+const mongoose = require('mongoose');
 
 const generateProductId = () => {
   return `PROD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`; // Generates an ID like "PROD-ABCD12345"
@@ -123,9 +124,101 @@ exports.getProductById = asyncHandler(async (req, res) => {
 
 
 
+// exports.updateProduct = asyncHandler(async (req, res) => {
+//   const { id } = req.params;
+//   const {
+//       name,
+//       price,
+//       sizes: sizesJson,
+//       description,
+//       countryOfOrigin,
+//       manufacturer,
+//       packedBy,
+//       commodity,
+//       maincategory,
+//       subcategory
+//   } = req.body;
+
+//   try {
+//       let formattedSizes = [];
+//       if (sizesJson) {
+//           const sizesData = JSON.parse(sizesJson);
+          
+//           formattedSizes = sizesData.map(size => {
+//               return {
+//                   size: size.size,
+//                   colors: size.colors.map(color => {
+//                       // Find new uploaded images for this color
+//                       const newImages = req.files ? req.files
+//                           .filter(file => file.fieldname.startsWith(`size_${size.size}_color_${color.color}_image_`))
+//                           .map(file => file.filename) : [];
+                      
+//                       // If new images were uploaded, replace the existing ones
+//                       // If no new images, keep the existing ones
+//                       const finalImages = newImages.length > 0 ? newImages : color.images;
+                      
+//                       return {
+//                           color: color.color,
+//                           stock: color.stock,
+//                           images: finalImages
+//                       };
+//                   })
+//               };
+//           });
+//       }
+
+//       // Handle cover image
+//       let coverImage;
+//       if (req.files && req.files.find(file => file.fieldname === 'coverImage')) {
+//           coverImage = req.files.find(file => file.fieldname === 'coverImage').filename;
+//       }
+
+//       const updateFields = {
+//           name,
+//           price,
+//           sizes: formattedSizes,
+//           description,
+//           countryOfOrigin,
+//           manufacturer,
+//           packedBy,
+//           commodity,
+//           maincategory,
+//           subcategory,
+//           ...(coverImage && { coverImage })
+//       };
+
+//       // Remove undefined fields
+//       Object.keys(updateFields).forEach(key => {
+//           if (updateFields[key] === undefined) delete updateFields[key];
+//       });
+
+//       const updatedProduct = await Product.findByIdAndUpdate(
+//           id,
+//           updateFields,
+//           { new: true, runValidators: true }
+//       );
+
+//       if (!updatedProduct) {
+//           return res.status(404).json({ message: 'Product not found' });
+//       }
+
+//       return res.status(200).json({
+//           message: 'Product updated successfully',
+//           product: updatedProduct
+//       });
+//   } catch (error) {
+//       console.error('Error during update:', error);
+//       return res.status(500).json({
+//           message: 'Error updating product',
+//           error: error.message
+//       });
+//   }
+// });
+
+
 exports.updateProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
-  const {
+  let {
       name,
       price,
       sizes: sizesJson,
@@ -139,6 +232,53 @@ exports.updateProduct = asyncHandler(async (req, res) => {
   } = req.body;
 
   try {
+      // Debug log to see what we're receiving
+      console.log('Received subcategory:', subcategory, typeof subcategory);
+
+      // Handle subcategory - parse it if it's a stringified object
+      let subcategoryId;
+      if (subcategory) {
+          try {
+              // If it's a stringified object, try to parse it
+              if (typeof subcategory === 'string' && subcategory.startsWith('{')) {
+                  subcategory = JSON.parse(subcategory);
+              }
+
+              // Now handle different cases
+              if (typeof subcategory === 'object' && subcategory._id) {
+                  subcategoryId = subcategory._id;
+              } else if (typeof subcategory === 'string' && 
+                       subcategory !== '[object Object]' && 
+                       mongoose.Types.ObjectId.isValid(subcategory)) {
+                  subcategoryId = subcategory;
+              } else {
+                  // If we can't get a valid ID, try to fetch the existing product
+                  // and use its current subcategory ID
+                  const existingProduct = await Product.findById(id);
+                  if (existingProduct && existingProduct.subcategory) {
+                      subcategoryId = existingProduct.subcategory;
+                  } else {
+                      return res.status(400).json({
+                          message: 'Invalid subcategory format and no existing subcategory found',
+                          receivedValue: subcategory
+                      });
+                  }
+              }
+          } catch (parseError) {
+              console.error('Error parsing subcategory:', parseError);
+              // If parsing fails, try to fetch the existing product
+              const existingProduct = await Product.findById(id);
+              if (existingProduct && existingProduct.subcategory) {
+                  subcategoryId = existingProduct.subcategory;
+              } else {
+                  return res.status(400).json({
+                      message: 'Invalid subcategory format and no existing subcategory found',
+                      receivedValue: subcategory
+                  });
+              }
+          }
+      }
+
       let formattedSizes = [];
       if (sizesJson) {
           const sizesData = JSON.parse(sizesJson);
@@ -173,32 +313,32 @@ exports.updateProduct = asyncHandler(async (req, res) => {
       }
 
       const updateFields = {
-          name,
-          price,
-          sizes: formattedSizes,
-          description,
-          countryOfOrigin,
-          manufacturer,
-          packedBy,
-          commodity,
-          maincategory,
-          subcategory,
-          ...(coverImage && { coverImage })
+          ...(name && { name }),
+          ...(price && { price: Number(price) }),
+          ...(formattedSizes.length > 0 && { sizes: formattedSizes }),
+          ...(description && { description }),
+          ...(countryOfOrigin && { countryOfOrigin }),
+          ...(manufacturer && { manufacturer }),
+          ...(packedBy && { packedBy }),
+          ...(commodity && { commodity }),
+          ...(maincategory && { maincategory }),
+          // Only include subcategory if we have a valid ID
+          ...(subcategoryId && { subcategory: subcategoryId })
       };
 
-      // Remove undefined fields
-      Object.keys(updateFields).forEach(key => {
-          if (updateFields[key] === undefined) delete updateFields[key];
-      });
+      // Log the final update fields for debugging
+      console.log('Update fields:', updateFields);
 
       const updatedProduct = await Product.findByIdAndUpdate(
           id,
           updateFields,
           { new: true, runValidators: true }
-      );
+      ).populate('subcategory');
 
       if (!updatedProduct) {
-          return res.status(404).json({ message: 'Product not found' });
+          return res.status(404).json({
+              message: 'Product not found'
+          });
       }
 
       return res.status(200).json({
@@ -207,12 +347,21 @@ exports.updateProduct = asyncHandler(async (req, res) => {
       });
   } catch (error) {
       console.error('Error during update:', error);
+      
+      if (error instanceof SyntaxError) {
+          return res.status(400).json({
+              message: 'Invalid JSON format in sizes data',
+              error: error.message
+          });
+      }
+      
       return res.status(500).json({
           message: 'Error updating product',
           error: error.message
       });
   }
 });
+
 // delete by id
 exports.deleteProduct = asyncHandler(async (req, res) => {
   const { id } = req.params; 

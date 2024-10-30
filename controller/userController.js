@@ -4,49 +4,105 @@ const jwt = require('jsonwebtoken');
 const User = require('../models/userModel');
 const nodemailer = require('nodemailer');
 const crypto = require('crypto');
+const Counter=require('../models/counterModel')
 
 // User registration controller
+// exports.registerUser = async (req, res) => {
+//     console.log("Inside User Register request");
+//     const { username, email, password, fullName, passwordConfirm } = req.body;
+//     console.log(username, email, fullName, password, passwordConfirm);
+
+//     try {
+//         // Check if the user already exists (either by username or email)
+//         const existingUser = await User.findOne({ $or: [{ username }, { email }] });
+//         if (existingUser) {
+//             return res.status(406).json("User already exists");
+//         }
+
+//         // Check if password and passwordConfirm match
+//         if (password !== passwordConfirm) {
+//             return res.status(400).json({ message: "Passwords do not match" });
+//         }
+
+//         // Hash the password before saving
+//         const saltRounds = 10;
+//         const hashedPassword = await bcrypt.hash(password, saltRounds);
+
+//         // Create a new user
+//         const newUser = new User({
+//             username,
+//             email,
+//             password: hashedPassword, // Store hashed password
+//             fullName // Store full name
+//         });
+
+//         // Save the new user
+//         await newUser.save();
+//         return res.status(201).json({
+//             _id: newUser._id,
+//             username: newUser.username,
+//             email: newUser.email,
+//             fullName: newUser.fullName // Return full name
+//         });
+//     } catch (err) {
+//         return res.status(500).json({ message: "Error creating user", error: err });
+//     }
+// };
+
 exports.registerUser = async (req, res) => {
-    console.log("Inside User Register request");
-    const { username, email, password, fullName, passwordConfirm } = req.body;
-    console.log(username, email, fullName, password, passwordConfirm);
+  const { username, email, password, fullName, passwordConfirm } = req.body;
 
-    try {
-        // Check if the user already exists (either by username or email)
-        const existingUser = await User.findOne({ $or: [{ username }, { email }] });
-        if (existingUser) {
-            return res.status(406).json("User already exists");
-        }
-
-        // Check if password and passwordConfirm match
-        if (password !== passwordConfirm) {
-            return res.status(400).json({ message: "Passwords do not match" });
-        }
-
-        // Hash the password before saving
-        const saltRounds = 10;
-        const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-        // Create a new user
-        const newUser = new User({
-            username,
-            email,
-            password: hashedPassword, // Store hashed password
-            fullName // Store full name
-        });
-
-        // Save the new user
-        await newUser.save();
-        return res.status(201).json({
-            _id: newUser._id,
-            username: newUser.username,
-            email: newUser.email,
-            fullName: newUser.fullName // Return full name
-        });
-    } catch (err) {
-        return res.status(500).json({ message: "Error creating user", error: err });
+  try {
+    // Check if user already exists by username or email
+    const existingUser = await User.findOne({ $or: [{ username }, { email }] });
+    if (existingUser) {
+      return res.status(406).json("User already exists");
     }
+
+    // Check if passwords match
+    if (password !== passwordConfirm) {
+      return res.status(400).json({ message: "Passwords do not match" });
+    }
+
+    // Hash password
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // Create new user with hashed password
+    const newUser = new User({
+      username,
+      email,
+      password: hashedPassword,
+      fullName
+    });
+
+    // Save the user (pre-save will set userCount)
+    await newUser.save();
+
+    return res.status(201).json({
+      _id: newUser._id,
+      username: newUser.username,
+      email: newUser.email,
+      fullName: newUser.fullName,
+      userCount: newUser.userCount
+    });
+  } catch (err) {
+    return res.status(500).json({ message: "Error creating user", error: err.message });
+  }
 };
+// Get Total Users Controller
+exports.getUserCount = async (req, res) => {
+  try {
+    const counter = await Counter.findById('userCount');
+    const userCount = counter ? counter.count : 0; // Fallback to 0 if counter is not found
+    console.log("Fetched user count:", userCount); // Log the fetched count
+    return res.status(200).json({ userCount });
+  } catch (err) {
+    console.error("Error fetching user count:", err);
+    return res.status(500).json({ message: "Error getting user count", error: err.message });
+  }
+};
+
+
 
 // User login controller
 exports.loginUser = async (req, res) => {
@@ -314,3 +370,5 @@ exports.resetPassword = async (req, res) => {
       res.status(500).json({ message: 'Something went wrong' });
   }
 };
+
+
