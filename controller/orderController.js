@@ -173,6 +173,29 @@ exports.getTotalOrderCount = async (req, res) => {
     }
 };
 
+exports.getOrdersByDay = async (req, res) => {
+    try {
+      const ordersPerDay = await Order.aggregate([
+        {
+          $group: {
+            _id: { $dateToString: { format: "%Y-%m-%d", date: "$orderDate" } },
+            orderCount: { $sum: 1 },
+            totalSales: { $sum: "$totalAmount" }
+          }
+        },
+        { $sort: { _id: 1 } } // Sort by date
+      ]);
+  
+      res.status(200).json({
+        count: ordersPerDay.length,
+        message: "Orders per day retrieved successfully",
+        ordersPerDay,
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Failed to retrieve orders per day", error });
+    }
+  };
+
 
 
 

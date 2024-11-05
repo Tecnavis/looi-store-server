@@ -109,6 +109,8 @@ router.post('/postOrder',jwtMiddleware,orderController.createOrder);
 router.get('/getOrders',orderController.getAllOrders);
 router.get('/getOrders/:orderId',jwtMiddleware,orderController.getOrderById);
 router.get('/getordercount',jwtMiddleware,orderController.getTotalOrderCount);
+router.get('/getOrdersPerDay', orderController.getOrdersByDay);
+
 
 router.get('/invoice/:orderId',jwtMiddleware,invoiceController.generateInvoice);
 
