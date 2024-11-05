@@ -59,7 +59,6 @@ router.get('/newarrival-product',productController.getNewArrivals);
 router.get('/similar-product',productController.getProductAndSimilar);
 
 // banner 
-
 router.post('/add-banner', jwtMiddleware, upload.array('banners'), bannerController.postBanner);
 router.get('/get-allbanner',bannerController.getBanner);
 router.get('/get-bannerid/:id',jwtMiddleware,bannerController.getBannerById);
@@ -112,7 +111,6 @@ router.get('/getOrders/:orderId',jwtMiddleware,orderController.getOrderById);
 router.get('/getordercount',jwtMiddleware,orderController.getTotalOrderCount);
 
 router.get('/invoice/:orderId',jwtMiddleware,invoiceController.generateInvoice);
-
 
 
 

@@ -14,6 +14,10 @@ const orderSchema = new mongoose.Schema({
         ref: 'user',
         required: true
     },
+    email: {
+        type: String,
+        required: true
+    },
     orderItems: [{
         quantity: {
             type: Number,

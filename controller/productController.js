@@ -7,7 +7,86 @@ const generateProductId = () => {
   return `PROD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`; // Generates an ID like "PROD-ABCD12345"
 };
 
+// exports.addProduct = asyncHandler(async (req, res) => {
+//   console.log('Request body:', req.body);
+//   if (!req.files || req.files.length === 0) {
+//     return res.status(400).json({ message: 'No images uploaded' });
+//   }
+
+//   const coverImageFile = req.files.find(file => file.fieldname === 'coverImage');
+//   if (!coverImageFile) {
+//     return res.status(400).json({ message: 'Cover image is required' });
+//   }
+  
+//   const {
+//     name,
+//     oldPrice,
+//     price,
+//     sizes,
+//     description,
+//     countryOfOrigin,
+//     manufacturer,
+//     packedBy,
+//     commodity,
+//     maincategory,
+//     subcategory,
+//     hsn, 
+//     sku, 
+//     dimensions 
+//   } = req.body;
+
+//   try {
+//     const sizeData = JSON.parse(sizes);
+//     const dimensionData = JSON.parse(dimensions);
+
+//     const formattedSizes = sizeData.map((size) => ({
+//       size: size.size,
+//       colors: size.colors.map((color) => ({
+//         color: color.color,
+//         stock: color.stock,
+//         images: req.files
+//           .filter(file => file.fieldname === 'productImages' && 
+//                           file.originalname.startsWith(`size_${size.size}_color_${color.color}_image_`))
+//           .map(file => file.filename)
+//       }))
+//     }));
+   
+//     const newProduct = new Product({
+//       productId: generateProductId(),
+//       name,
+//       oldPrice,
+//       price,
+//       coverImage: coverImageFile.filename,
+//       sizes: formattedSizes,
+//       description,
+//       countryOfOrigin,
+//       manufacturer,
+//       packedBy,
+//       commodity,
+//       maincategory,
+//       subcategory,
+//       hsn,
+//       sku,
+//       dimensions: dimensionData
+//     });
+
+//     const savedProduct = await newProduct.save();
+
+//     return res.status(200).json({
+//       message: 'Product added successfully',
+//       product: savedProduct
+//     });
+//   } catch (error) {
+//     console.error('Error adding product:', error);
+//     if (error.name === 'ValidationError') {
+//       return res.status(400).json({ message: 'Validation error', errors: error.errors });
+//     }
+//     return res.status(500).json({ message: 'Error adding product', error: error.message });
+//   }
+// });
+
 exports.addProduct = asyncHandler(async (req, res) => {
+  console.log('Request body:', req.body);
   if (!req.files || req.files.length === 0) {
     return res.status(400).json({ message: 'No images uploaded' });
   }
@@ -16,7 +95,7 @@ exports.addProduct = asyncHandler(async (req, res) => {
   if (!coverImageFile) {
     return res.status(400).json({ message: 'Cover image is required' });
   }
-  
+
   const {
     name,
     oldPrice,
@@ -28,19 +107,27 @@ exports.addProduct = asyncHandler(async (req, res) => {
     packedBy,
     commodity,
     maincategory,
-    subcategory
+    subcategory,
+    hsn,
+    sku,
+    height,
+    width,
+    length,
+    weight,
+    
   } = req.body;
 
   try {
     const sizeData = JSON.parse(sizes);
+
     const formattedSizes = sizeData.map((size) => ({
       size: size.size,
       colors: size.colors.map((color) => ({
         color: color.color,
         stock: color.stock,
         images: req.files
-          .filter(file => file.fieldname === 'productImages' && 
-                          file.originalname.startsWith(`size_${size.size}_color_${color.color}_image_`))
+          .filter(file => file.fieldname === 'productImages' &&
+            file.originalname.startsWith(`size_${size.size}_color_${color.color}_image_`))
           .map(file => file.filename)
       }))
     }));
@@ -58,7 +145,13 @@ exports.addProduct = asyncHandler(async (req, res) => {
       packedBy,
       commodity,
       maincategory,
-      subcategory
+      subcategory,
+      hsn,
+      sku,
+      height,
+      width,
+      length,
+      weight
     });
 
     const savedProduct = await newProduct.save();
@@ -75,7 +168,6 @@ exports.addProduct = asyncHandler(async (req, res) => {
     return res.status(500).json({ message: 'Error adding product', error: error.message });
   }
 });
-
 
 exports.getAllProducts = asyncHandler(async (req, res) => {
   try {

@@ -70,6 +70,30 @@ const productSchema = new mongoose.Schema({
       default: 0,
     },
   },
+  hsn: { type: String, required: true },
+  sku: { type: String, required: true, unique: true },
+
+    length: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    width: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    height: {
+      type: Number,
+      required: true,
+      min: 0
+    },
+    weight: {
+      type: Number,
+      required: true,
+      min: 0
+    }  
+,
   createdAt: {
     type: Date,
     default: Date.now,

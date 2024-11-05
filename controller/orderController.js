@@ -51,6 +51,8 @@ exports.createOrder = async (req, res) => {
         { $push: { orders: order._id } },
         { new: true }
     );
+
+    
         res.status(200).json({
             success: true,
             message: 'Order created successfully',
@@ -170,5 +172,7 @@ exports.getTotalOrderCount = async (req, res) => {
         res.status(500).json({ error: error.message });
     }
 };
+
+
 
 

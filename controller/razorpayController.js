@@ -20,23 +20,6 @@ exports.order = async(req,res)=> {
     }
 
 }
-// exports.validate = async(req, res) => {
-   
-//     const { razorpay_signature, razorpay_order_id, razorpay_payment_id } = req.body;
-    
-//     // Create a hash for comparison
-//     const sha = crypto.createHmac('sha256', process.env.RAZORPAY_SECRET_KEY);
-//     sha.update(`${razorpay_order_id}|${razorpay_payment_id}`);
-//     const digest = sha.digest('hex');
-   
-//     // Validate the signature
-//     if (digest !== razorpay_signature) {
-//         return res.status(400).json({ success: false, msg: "Transaction is not legit" });
-//     }
-
-//     res.json({ success: true, orderId: razorpay_order_id, paymentId: razorpay_payment_id });
-// };
-
 
 exports.validate = async(req, res) => {
     const { razorpay_signature, razorpay_order_id, razorpay_payment_id } = req.body;
