@@ -3,6 +3,106 @@ const Product=require('../models/productModel')
 const asyncHandler = require('express-async-handler');
 
 
+// exports.addToCart = async (req, res) => {
+//   try {
+//     const { size, color, quantity } = req.body;
+//     const productId = req.params.productId;
+//     const userId = req.user._id;
+
+//     // Validate required fields
+//     if (!productId || !size || !color || !quantity) {
+//       return res.status(400).json({ 
+//         message: 'ProductId, size, color, and quantity are required' 
+//       });
+//     }
+
+//     // Find the product
+//     const product = await Product.findById(productId);
+//     if (!product) {
+//       return res.status(404).json({ message: 'Product not found' });
+//     }
+
+//     // Find user's cart
+//     let cart = await Cart.findOne({ user: userId });
+//     if (!cart) {
+//       cart = new Cart({
+//         user: userId,
+//         items: []
+//       });
+//     }
+
+//     // Update existing items to ensure they all have coverImage
+//     const updatedItems = await Promise.all(cart.items.map(async (item) => {
+//       if (!item.coverImage) {
+//         const itemProduct = await Product.findById(item.product);
+//         if (itemProduct && itemProduct.coverImage) {
+//           item.coverImage = itemProduct.coverImage;
+//         }
+//       }
+//       return item;
+//     }));
+//     cart.items = updatedItems;
+
+//     // Prepare the new item data
+//     const itemData = {
+//       product: productId,
+//       productName: product.name,
+//       coverImage: product.coverImage,
+//       size,
+//       color,
+//       quantity,
+//       price: product.price,
+//       hsn,
+//       sku,
+//       length,
+//       width,
+//       height,
+//       weight
+//     };
+
+//     // Check if item exists in cart
+//     const existingItemIndex = cart.items.findIndex(item =>
+//       item.product.toString() === productId &&
+//       item.size === size &&
+//       item.color === color
+//     );
+
+//     if (existingItemIndex >= 0) {
+//       cart.items[existingItemIndex].quantity += quantity;
+//     } else {
+//       cart.items.push(itemData);
+//     }
+
+//     // Calculate total price
+//     cart.totalPrice = cart.items.reduce((total, item) => {
+//       return total + (item.price * item.quantity);
+//     }, 0);
+
+//     // Save the updated cart
+//     const savedCart = await cart.save();
+    
+//     res.status(200).json({
+//       message: 'Product added to cart successfully',
+//       cart: await savedCart.populate('items.product')
+//     });
+
+//   } catch (error) {
+//     console.error('Cart Error:', error);
+//     if (error.name === 'ValidationError') {
+//       return res.status(400).json({ 
+//         message: 'Validation error', 
+//         errors: error.errors 
+//       });
+//     }
+//     res.status(500).json({ 
+//       message: 'Error adding to cart', 
+//       error: error.message 
+//     });
+//   }
+// };
+
+// Get user cart
+
 exports.addToCart = async (req, res) => {
   try {
     const { size, color, quantity } = req.body;
@@ -21,6 +121,9 @@ exports.addToCart = async (req, res) => {
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
+
+    // Destructure additional details from the product
+    const { hsn, sku, length, width, height, weight } = product;
 
     // Find user's cart
     let cart = await Cart.findOne({ user: userId });
@@ -51,7 +154,13 @@ exports.addToCart = async (req, res) => {
       size,
       color,
       quantity,
-      price: product.price
+      price: product.price,
+      hsn,
+      sku,
+      length,
+      width,
+      height,
+      weight
     };
 
     // Check if item exists in cart
@@ -95,7 +204,6 @@ exports.addToCart = async (req, res) => {
   }
 };
 
-// Get user cart
 
 exports.getCart = async (req, res) => {
   try {

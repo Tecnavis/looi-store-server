@@ -180,7 +180,6 @@ exports.loginUser = async (req, res) => {
 // get user details
 
 
-
 exports.addUserAddress = async (req, res) => {
   const { userId } = req.params;
   const { firstName, lastName, houseBuilding, streetArea, landmark, postalCode, cityDistrict, phoneNumber } = req.body;

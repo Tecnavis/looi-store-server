@@ -39,6 +39,30 @@ const cartSchema = new mongoose.Schema({
     price: {
       type: Number,
       required: true // Store the product price at the time of adding to cart
+    },
+    hsn: {
+      type: String,
+      required: true
+    },
+    sku: {
+      type: String,
+      required: true
+    },
+    length: {
+      type: Number,
+      required: true
+    },
+    width: {
+      type: Number,
+      required: true
+    },
+    height: {
+      type: Number,
+      required: true
+    },
+    weight: {
+      type: Number,
+      required: true
     }
   }],
   totalPrice: {

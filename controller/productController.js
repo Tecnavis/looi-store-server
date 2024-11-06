@@ -479,7 +479,7 @@ exports.deleteProduct = asyncHandler(async (req, res) => {
 });
 
 
-const NEW_ARRIVAL_DAYS = 10;
+const NEW_ARRIVAL_DAYS = 30;
 
 exports.getNewArrivals = asyncHandler(async (req, res) => {
   try {

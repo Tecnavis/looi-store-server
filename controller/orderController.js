@@ -18,7 +18,8 @@ exports.createOrder = async (req, res) => {
             paymentStatus,
             totalAmount,
             razorpayOrderId,
-            razorpayPaymentId
+            razorpayPaymentId,
+            email
         } = req.body;
 
         // Validate required fields
@@ -26,6 +27,12 @@ exports.createOrder = async (req, res) => {
             return res.status(400).json({ 
                 success: false, 
                 message: 'Missing required fields' 
+            });
+        }
+        if (!email) {
+            return res.status(400).json({ 
+                success: false, 
+                message: 'Email is required for order creation'
             });
         }
 
@@ -40,6 +47,7 @@ exports.createOrder = async (req, res) => {
             totalAmount,
             razorpayOrderId,
             razorpayPaymentId,
+            email,
             orderStatus: 'Pending',
             orderDate: new Date()
         });
@@ -52,7 +60,6 @@ exports.createOrder = async (req, res) => {
         { new: true }
     );
 
-    
         res.status(200).json({
             success: true,
             message: 'Order created successfully',
@@ -87,7 +94,6 @@ exports.orderSuccessHandler = asyncHandler(async (req, res) => {
         message: 'Order processed successfully, and stock updated',
     });
 });
-
 
 exports.getAllOrders = async (req, res) => {
     try {
