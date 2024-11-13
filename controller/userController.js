@@ -179,10 +179,9 @@ exports.loginUser = async (req, res) => {
 
 // get user details
 
-
 exports.addUserAddress = async (req, res) => {
   const { userId } = req.params;
-  const { firstName, lastName, houseBuilding, streetArea, landmark, postalCode, cityDistrict, phoneNumber } = req.body;
+  const { firstName, lastName, houseBuilding, streetArea, landmark, postalCode, cityDistrict,state,country, phoneNumber } = req.body;
 
   try {
     // Push a new address into the address array
@@ -198,6 +197,8 @@ exports.addUserAddress = async (req, res) => {
             landmark,
             postalCode,
             cityDistrict,
+            state,
+            country,
             phoneNumber
           }
         }
@@ -243,7 +244,7 @@ exports.deleteUserAddress = async (req, res) => {
 
 exports.editUserAddress = async (req, res) => {
   const { userId, addressId } = req.params;
-  const { firstName, lastName, houseBuilding, streetArea, landmark, postalCode, cityDistrict, phoneNumber } = req.body;
+  const { firstName, lastName, houseBuilding, streetArea, landmark, postalCode, cityDistrict,state,country, phoneNumber } = req.body;
 
   try {
     // Find the user by userId and the specific address by _id within the address array
@@ -258,6 +259,8 @@ exports.editUserAddress = async (req, res) => {
           'address.$.landmark': landmark,
           'address.$.postalCode': postalCode,
           'address.$.cityDistrict': cityDistrict,
+          'address.$.state': state,
+          'address.$.country': country,
           'address.$.phoneNumber': phoneNumber
         }
       },

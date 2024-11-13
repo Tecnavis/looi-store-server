@@ -13,6 +13,10 @@ const cartSchema = new mongoose.Schema({
       ref: 'Product', // Reference to the Product model
       required: true
     },
+    productId:{
+      type:String,
+      required:true
+    },
     productName: {
       type: String,  // Add the product name here
       required: true

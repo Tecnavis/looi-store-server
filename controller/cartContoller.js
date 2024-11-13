@@ -149,6 +149,7 @@ exports.addToCart = async (req, res) => {
     // Prepare the new item data
     const itemData = {
       product: productId,
+      productId,
       productName: product.name,
       coverImage: product.coverImage,
       size,

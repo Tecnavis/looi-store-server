@@ -93,6 +93,7 @@ router.post('/user-login',userController.loginUser);
 router.get('/total-users', userController.getUserCount);
 router.post('/add-address/:userId',jwtMiddleware,userController.addUserAddress);
 
+
 router.get('/user-details/:userId',jwtMiddleware,userController.getUserDetails);
 router.get('/all-users',userController.getAllUsers);
 router.delete('/delete-user/:userId/address/:addressId', jwtMiddleware, userController.deleteUserAddress);
@@ -110,9 +111,12 @@ router.get('/getOrders',orderController.getAllOrders);
 router.get('/getOrders/:orderId',jwtMiddleware,orderController.getOrderById);
 router.get('/getordercount',jwtMiddleware,orderController.getTotalOrderCount);
 router.get('/getOrdersPerDay', orderController.getOrdersByDay);
+router.post('/orders/:orderId/cancel', orderController.cancelOrder);
 
+router.get('/user/orders', jwtMiddleware, orderController.getOrdersByUser);
 
 router.get('/invoice/:orderId',jwtMiddleware,invoiceController.generateInvoice);
+
 
 
 

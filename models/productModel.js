@@ -71,7 +71,7 @@ const productSchema = new mongoose.Schema({
     },
   },
   hsn: { type: String, required: true },
-  sku: { type: String, required: true, unique: true },
+  sku: { type: String, required: true},
 
     length: {
       type: Number,
