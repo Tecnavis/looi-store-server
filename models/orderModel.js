@@ -126,7 +126,13 @@ const orderSchema = new mongoose.Schema({
     },
     shiprocketOrderId: {
         type: String
-    }
+    },
+    awbCode:{
+        type: String
+    },
+    shipmentId: {
+     type: String
+    },
 }, {
     timestamps: true
 });

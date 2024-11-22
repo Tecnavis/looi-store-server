@@ -481,16 +481,50 @@ exports.deleteProduct = asyncHandler(async (req, res) => {
 
 const NEW_ARRIVAL_DAYS = 30;
 
+// exports.getNewArrivals = asyncHandler(async (req, res) => {
+//   try {
+//     // Calculate the date from 30 days ago
+//     const thirtyDaysAgo = new Date();
+//     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - NEW_ARRIVAL_DAYS);
+
+//     // Query to find products created within the last 30 days and sort by newest
+//     const newArrivals = await Product.find({
+//       createdAt: { $gte: thirtyDaysAgo }
+//     }).sort({ createdAt: -1 })
+//     .populate('subcategory');
+
+//     // Check if any new products are found
+//     if (!newArrivals || newArrivals.length === 0) {
+//       return res.status(404).json({ message: 'No new arrivals found' });
+//     }
+
+//     // Return the new arrivals
+//     return res.status(200).json({
+//       message: 'New arrivals retrieved successfully',
+//       products: newArrivals
+//     });
+//   } catch (error) {
+//     // Handle errors
+//     return res.status(500).json({ message: 'Error retrieving new arrivals', error });
+//   }
+// });
+
+
 exports.getNewArrivals = asyncHandler(async (req, res) => {
   try {
     // Calculate the date from 30 days ago
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - NEW_ARRIVAL_DAYS);
 
-    // Query to find products created within the last 30 days and sort by newest
+    // Get the search query from request parameters
+    const searchQuery = req.query.search || '';
+
+    // Query to find products created within the last 30 days, sorted by newest
     const newArrivals = await Product.find({
-      createdAt: { $gte: thirtyDaysAgo }
-    }).sort({ createdAt: -1 })
+      createdAt: { $gte: thirtyDaysAgo },
+      name: { $regex: searchQuery, $options: 'i' } // Case-insensitive search by name
+    })
+    .sort({ createdAt: -1 })
     .populate('subcategory');
 
     // Check if any new products are found
@@ -542,6 +576,8 @@ exports.getProductAndSimilar = asyncHandler(async (req, res) => {
     return res.status(500).json({ message: 'Error retrieving similar products', error });
   }
 });
+
+
 
 
 

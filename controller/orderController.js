@@ -290,7 +290,6 @@ exports.createOrder = async (req, res) => {
 };
 
 
-
 // Order Success Handler
 exports.orderSuccessHandler = asyncHandler(async (req, res) => {
     const { orderId } = req.body;
@@ -316,15 +315,15 @@ exports.getAllOrders = async (req, res) => {
         const orders = await Order.find()
             .populate({
                 path: 'user',
-                model: 'user', // Ensure the model name matches the one defined in your User model
-                select: 'name email' // Select only the name and email fields from User
+                model: 'user', 
+                select: 'name email' 
             })
             .populate({
-                path: 'orderItems.product_id', // Update this to match your schema
-                model: 'Product', // Ensure the model name matches the one defined in your Product model
-                select: 'name price coverImage' // Select only the fields you need
+                path: 'orderItems.product_id', 
+                model: 'Product', 
+                select: 'name price coverImage' 
             })
-            .sort({ orderDate: -1 }); // Sort by newest first
+            .sort({ orderDate: -1 }); 
 
         res.status(200).json({
             success: true,
@@ -345,19 +344,19 @@ exports.getAllOrders = async (req, res) => {
 // get by id
 exports.getOrderById = async (req, res) => {
     try {
-        const { orderId } = req.params; // Get the order ID from the request parameters
+        const { orderId } = req.params; 
 
         // Find the order by ID and populate user and orderItems details
         const order = await Order.findById(orderId)
             .populate({
                 path: 'user',
                 model: 'user',
-                select: 'name email' // Select fields to return from User
+                select: 'name email' 
             })
             .populate({
-                path: 'orderItems.product_id', // Update this to match your schema
+                path: 'orderItems.product_id', 
                 model: 'Product',
-                select: 'name price coverImage' // Select fields to return from Product
+                select: 'name price coverImage' 
             });
 
         // Check if the order exists
@@ -382,7 +381,6 @@ exports.getOrderById = async (req, res) => {
         });
     }
 };
-
 
 
 exports.getOrdersByUser = async (req, res) => {
@@ -422,7 +420,6 @@ exports.getOrdersByUser = async (req, res) => {
         });
     }
 };
-
 
 
 // get ordercount
@@ -556,6 +553,73 @@ exports.cancelOrder = async (req, res) => {
         return res.status(500).json({
             success: false,
             message: 'Failed to cancel order',
+            error: error.message
+        });
+    }
+};
+
+// delivery mail
+
+exports.markOrderAsDelivered = async (req, res) => {
+    const { orderId } = req.params;
+
+    try {
+        // Find the order by ID
+        const order = await Order.findById(orderId);
+
+        if (!order) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found'
+            });
+        }
+
+        if (order.orderStatus === 'Delivered') {
+            return res.status(400).json({
+                success: false,
+                message: 'Order is already marked as delivered'
+            });
+        }
+
+        // Update the order status to 'Delivered'
+        order.orderStatus = 'Delivered';
+        order.deliveryDate = new Date();
+        await order.save();
+
+        // Send delivery success email
+        const orderItemsHtml = order.orderItems.map(item => `
+            <li>
+                <strong>${item.productName}</strong> - ${item.quantity} x ₹${item.price} = ₹${item.quantity * item.price}
+                <br>Size: ${item.size}, Color: ${item.color}
+            </li>
+        `).join('');
+
+        await sendEmail(
+            order.email,
+            'Order Delivered Successfully',
+            `Your order #${order.orderId} has been delivered successfully.`,
+            `
+                <p>Dear Customer,</p>
+                <p>We are pleased to inform you that your order <strong>#${order.orderId}</strong> has been delivered successfully.</p>
+                <p><strong>Order Details:</strong></p>
+                <ul>${orderItemsHtml}</ul>
+                <p><strong>Total Amount:</strong> ₹${order.totalAmount}</p>
+                <p>Thank you for shopping with us! We hope you enjoy your purchase.</p>
+                <p>If you have any questions, feel free to contact us.</p>
+            `
+        );
+
+        return res.status(200).json({
+            success: true,
+            message: 'Order marked as delivered and email sent to the customer',
+            order
+        });
+
+    } catch (error) {
+        console.error('Error marking order as delivered:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to mark order as delivered',
             error: error.message
         });
     }

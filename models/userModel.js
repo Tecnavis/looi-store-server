@@ -68,6 +68,16 @@ const userSchema = new mongoose.Schema({
       trim: true,
       required: false // Optional field
     },
+    state:{
+      type: String,
+      trim: true,
+      required: false // Optional field
+    },
+    country: {
+      type: String,
+      trim: true,
+      required: false // Optional field
+    },
     phoneNumber: {
       type: String,
       trim: true,

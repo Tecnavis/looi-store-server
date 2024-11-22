@@ -113,11 +113,11 @@ router.get('/getordercount',jwtMiddleware,orderController.getTotalOrderCount);
 router.get('/getOrdersPerDay', orderController.getOrdersByDay);
 router.post('/orders/:orderId/cancel', orderController.cancelOrder);
 
+router.put('/mark-as-delivered/:orderId',orderController.markOrderAsDelivered);
+
 router.get('/user/orders', jwtMiddleware, orderController.getOrdersByUser);
 
 router.get('/invoice/:orderId',jwtMiddleware,invoiceController.generateInvoice);
-
-
 
 
 module.exports=router; 
