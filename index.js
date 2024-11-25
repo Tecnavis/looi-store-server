@@ -11,7 +11,7 @@ const StoreServer = express();
 StoreServer.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 StoreServer.use(cors());
 StoreServer.use(cors({
-    origin: ['http://localhost:5173', 'https://looi.in'],
+    origin: ['http://localhost:5173', 'https://looi.in',"https://admin.looi.in"],
     methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true,
   }));
