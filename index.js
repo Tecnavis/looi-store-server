@@ -10,11 +10,11 @@ require('./config/connection')
 const StoreServer = express();
 StoreServer.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 StoreServer.use(cors());
-// StoreServer.use(cors({
-//     origin: 'http://localhost:5173', 
-//     methods: ['GET', 'POST', 'PUT', 'DELETE'],
-//     credentials: true,
-//   }));
+StoreServer.use(cors({
+    origin: ['http://localhost:5173', 'https://looi.in'],
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true,
+  }));
   
 StoreServer.use(express.json());
 StoreServer.use(express.urlencoded({ extended: true }));
