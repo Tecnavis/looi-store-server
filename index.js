@@ -10,6 +10,7 @@ require('./config/connection')
 const StoreServer = express();
 StoreServer.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 StoreServer.use(cors());
+
 // StoreServer.use(cors({
 //     origin: 'http://localhost:5173', 
 //     methods: ['GET', 'POST', 'PUT', 'DELETE'],
