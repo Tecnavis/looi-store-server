@@ -6,49 +6,6 @@ const nodemailer = require('nodemailer');
 const crypto = require('crypto');
 const Counter=require('../models/counterModel')
 
-// User registration controller
-// exports.registerUser = async (req, res) => {
-//     console.log("Inside User Register request");
-//     const { username, email, password, fullName, passwordConfirm } = req.body;
-//     console.log(username, email, fullName, password, passwordConfirm);
-
-//     try {
-//         // Check if the user already exists (either by username or email)
-//         const existingUser = await User.findOne({ $or: [{ username }, { email }] });
-//         if (existingUser) {
-//             return res.status(406).json("User already exists");
-//         }
-
-//         // Check if password and passwordConfirm match
-//         if (password !== passwordConfirm) {
-//             return res.status(400).json({ message: "Passwords do not match" });
-//         }
-
-//         // Hash the password before saving
-//         const saltRounds = 10;
-//         const hashedPassword = await bcrypt.hash(password, saltRounds);
-
-//         // Create a new user
-//         const newUser = new User({
-//             username,
-//             email,
-//             password: hashedPassword, // Store hashed password
-//             fullName // Store full name
-//         });
-
-//         // Save the new user
-//         await newUser.save();
-//         return res.status(201).json({
-//             _id: newUser._id,
-//             username: newUser.username,
-//             email: newUser.email,
-//             fullName: newUser.fullName // Return full name
-//         });
-//     } catch (err) {
-//         return res.status(500).json({ message: "Error creating user", error: err });
-//     }
-// };
-
 exports.registerUser = async (req, res) => {
   const { username, email, password, fullName, passwordConfirm } = req.body;
 
@@ -141,43 +98,6 @@ exports.loginUser = async (req, res) => {
         return res.status(500).json({ message: "Internal server error" });
     }
 };
-
-  
-// exports.updateUserAddress = async (req, res) => {
-//   const { userId } = req.params; // Get the userId from the route parameter
-//   const { firstName, lastName, houseBuilding, streetArea, landmark, postalCode, cityDistrict, phoneNumber } = req.body;
-
-//   try {
-//     // Find user by ID and update their address
-//     const updatedUser = await User.findByIdAndUpdate(
-//       userId,
-//       {
-//         $set: {
-//           address: {
-//             firstName,
-//             lastName,
-//             houseBuilding,
-//             streetArea,
-//             landmark,
-//             postalCode,
-//             cityDistrict,
-//             phoneNumber
-//           }
-//         }
-//       },
-//       { new: true, runValidators: true } // Return the updated document and validate inputs
-//     );
-
-//     if (!updatedUser) {
-//       return res.status(404).json({ message: 'User not found' });
-//     }
-//     res.status(200).json({ message: 'Address updated successfully', user: updatedUser });
-//   } catch (error) {
-//     res.status(500).json({ message: 'Server error', error: error.message });
-//   }
-// };
-
-// get user details
 
 exports.addUserAddress = async (req, res) => {
   const { userId } = req.params;
@@ -374,3 +294,42 @@ exports.resetPassword = async (req, res) => {
 };
 
 
+//delete user by Id
+exports.deleteUserById = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const deletedUser = await User.findByIdAndDelete(userId);
+    if (!deletedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.status(200).json({ message: 'User deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+//get user by Id
+exports.getUserById = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const user = await User.findById(userId);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.status(200).json({ user });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+//update user by Id
+exports.updateUserById = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const updatedUser = await User.findByIdAndUpdate(userId, req.body, { new: true });
+    if (!updatedUser) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    res.status(200).json({ message: 'User updated successfully', user: updatedUser });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};

@@ -92,6 +92,9 @@ router.post('/user-register',userController.registerUser);
 router.post('/user-login',userController.loginUser);
 router.get('/total-users', userController.getUserCount);
 router.post('/add-address/:userId',jwtMiddleware,userController.addUserAddress);
+router.delete('/delete-user/:userId',jwtMiddleware,userController.deleteUserById);
+router.get('/get-user/:userId',jwtMiddleware,userController.getUserById);
+router.put('/update-user/:userId',jwtMiddleware,userController.updateUserById);
 
 
 router.get('/user-details/:userId',jwtMiddleware,userController.getUserDetails);
