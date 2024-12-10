@@ -112,9 +112,11 @@ router.post('/verify-payment',jwtMiddleware,razorpayController.validate);
 router.post('/postOrder',jwtMiddleware,orderController.createOrder);
 router.get('/getOrders',orderController.getAllOrders);
 router.get('/getOrders/:orderId',jwtMiddleware,orderController.getOrderById);
+router.put('/update-order/:orderId',orderController.updateOrderById);
 router.get('/getordercount',jwtMiddleware,orderController.getTotalOrderCount);
 router.get('/getOrdersPerDay', orderController.getOrdersByDay);
 router.post('/orders/:orderId/cancel', orderController.cancelOrder);
+router.delete('/delete-order/:orderId',orderController.deleteOrderById);
 
 router.put('/mark-as-delivered/:orderId',orderController.markOrderAsDelivered);
 

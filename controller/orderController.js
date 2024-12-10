@@ -381,7 +381,40 @@ exports.getOrderById = async (req, res) => {
         });
     }
 };
+//update order
+exports.updateOrderById = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        const updatedData = req.body;
 
+        // Find the order by ID and update with new data
+        const updatedOrder = await Order.findByIdAndUpdate(
+            orderId,
+            { $set: updatedData },
+            { new: true }
+        );
+
+        if (!updatedOrder) {
+            return res.status(404).json({
+                success: false,
+                message: 'Order not found',
+            });
+        }
+
+        res.status(200).json({
+            success: true,
+            message: 'Order updated successfully',
+            order: updatedOrder,
+        });
+    } catch (error) {
+        console.error('Error updating order:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to update order',
+            error: error.message,
+        });
+    }
+};
 
 exports.getOrdersByUser = async (req, res) => {
     try {
@@ -625,95 +658,21 @@ exports.markOrderAsDelivered = async (req, res) => {
     }
 };
 
-
-
-// exports.cancelOrder = async (req, res) => {
-//     const { orderId } = req.params;
-    
-//     try {
-//         // Find the order to cancel
-//         const order = await Order.findById(orderId);
-//         if (!order) {
-//             return res.status(404).json({
-//                 success: false,
-//                 message: 'Order not found'
-//             });
-//         }
-
-//         // Check if it's a COD order
-//         if (order.paymentMethod !== 'COD') {
-//             return res.status(400).json({
-//                 success: false,
-//                 message: 'This cancellation method is only for COD orders'
-//             });
-//         }
-
-//         // Check if the order can be canceled
-//         if (order.orderStatus === 'Cancelled') {
-//             return res.status(400).json({
-//                 success: false,
-//                 message: 'Order is already cancelled'
-//             });
-//         }
-
-//         if (order.orderStatus === 'Shipped' || order.orderStatus === 'Delivered') {
-//             return res.status(400).json({
-//                 success: false,
-//                 message: 'Cannot cancel order that has been shipped or delivered'
-//             });
-//         }
-
-//         // Increment stock for each product in the order
-//         for (let item of order.orderItems) {
-//             const product = await Product.findById(item.productId);
-//             if (product) {
-//                 const size = product.sizes.find(s => s.size === item.size);
-//                 if (size) {
-//                     const color = size.colors.find(c => c.color === item.color);
-//                     if (color) {
-//                         color.stock += item.quantity;  // Increment the stock
-//                         await product.save();  // Save the updated stock
-//                     }
-//                 }
-//             }
-//         }
-
-//         // Update order status to cancelled
-//         order.orderStatus = 'Cancelled';
-//         order.cancellationDate = new Date();
-//         order.cancellationReason = req.body.reason || 'Customer requested cancellation';
-//         await order.save();
-
-//         await sendEmail(
-//                 order.email,
-//                 'Order Cancellation Confirmation',
-//                 `Your order #${order.orderId} has been cancelled successfully.`,
-//                 `
-//                     <h2>Order Cancellation Confirmation</h2>
-//                     <p>Your order #${order.orderId} has been cancelled successfully.</p>
-//                     <h3>Cancellation Details:</h3>
-//                     <ul>
-//                         <li>Order Amount: ₹${order.totalAmount}</li>
-//                         <li>Cancellation Date: ${new Date().toLocaleDateString()}</li>
-//                     </ul>
-//                     ${order.paymentType === 'prepaid' ? 
-//                         '<p><strong>Your refund will be initiated within 5-7 business days.</strong></p>' : 
-//                         ''}
-//                 `
-//             );
-
-//         return res.status(200).json({
-//             success: true,
-//             message: 'COD order cancelled and stock restored successfully',
-//             order
-//         });
-
-//     } catch (error) {
-//         console.error('Error in COD order cancellation:', error);
-//         return res.status(500).json({
-//             success: false,
-//             message: 'Failed to cancel COD order',
-//             error: error.message
-//         });
-//     }
-// };
+//delete order by orderId
+exports.deleteOrderById = async (req, res) => {
+    try {
+        const { orderId } = req.params;
+        await Order.findByIdAndDelete(orderId);
+        res.status(200).json({
+            success: true,
+            message: 'Order deleted successfully',
+        });
+    } catch (error) {
+        console.error('Error in deleting order:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Failed to delete order',
+            error: error.message
+        });
+    }
+};
