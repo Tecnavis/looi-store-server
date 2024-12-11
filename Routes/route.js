@@ -117,7 +117,7 @@ router.put('/mark-as-delivered/:orderId',orderController.markOrderAsDelivered);
 
 router.get('/user/orders', jwtMiddleware, orderController.getOrdersByUser);
 
-router.get('/invoice/:orderId',jwtMiddleware,invoiceController.generateInvoice);
+router.get('/invoice/:orderId',invoiceController.generateInvoice);
 
 
 module.exports=router; 
