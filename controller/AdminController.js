@@ -15,11 +15,11 @@ exports.registerAdmin = async (req, res) => {
         } else {
             // Hash the password before saving
             const saltRounds = 10;
-            // const hashedPassword = await bcrypt.hash(password, saltRounds);
+            const hashedPassword = await bcrypt.hash(password, saltRounds);
   
             const newUser = new admins({
                 username,
-                password: password // store hashed password
+                password: hashedPassword // store hashed password
             });
             await newUser.save();
             return res.status(200).json(newUser);
