@@ -107,7 +107,8 @@ router.post('/reset-password/:token',userController.resetPassword);
 
 // payment
 router.post('/order',jwtMiddleware,razorpayController.order);
-router.post('/verify-payment',jwtMiddleware,razorpayController.validate);
+router.post('/verify-payment', jwtMiddleware, razorpayController.verify);
+
 
 router.post('/postOrder',jwtMiddleware,orderController.createOrder);
 router.get('/getOrders',orderController.getAllOrders);
