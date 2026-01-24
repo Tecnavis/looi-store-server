@@ -1,5 +1,5 @@
 const User = require("../models/userModel");
-const Order = require("../models/orderModel");
+const Order = require("../models/Order");
 const Product = require("../models/productModel");
 const asyncHandler = require("express-async-handler");
 const { updateStock } = require("../services/stockService");
@@ -511,3 +511,48 @@ exports.deleteOrderById = async (req, res) => {
     });
   }
 };
+
+exports.placeOrder = async (req, res) => {
+  try {
+    const {
+      userId,
+      items,
+      address,
+      totalAmount,
+      paymentMethod, // "COD" or "RAZORPAY"
+      paymentStatus, // "PENDING" or "PAID"
+      transactionId, // razorpay_payment_id (optional)
+    } = req.body;
+
+    if (!items || items.length === 0) {
+      return res.status(400).json({ message: "Cart is empty" });
+    }
+
+    if (!address) {
+      return res.status(400).json({ message: "Address is required" });
+    }
+
+    const order = new Order({
+      userId,
+      items,
+      address,
+      totalAmount,
+      paymentMethod,
+      paymentStatus: paymentMethod === "COD" ? "PENDING" : "PAID",
+      transactionId: transactionId || null,
+      orderStatus: "PLACED",
+    });
+
+    await order.save();
+
+    return res.status(201).json({
+      message: "Order placed successfully",
+      order,
+    });
+  } catch (err) {
+    console.log("placeOrder error:", err);
+    return res.status(500).json({ message: "Failed to place order" });
+  }
+};
+
+router.post("/place", placeOrder);

@@ -5,6 +5,8 @@ const express = require("express");
 const router = require('./Routes/route');
 var path=require('path')
 
+const paymentRoutes = require("./routes/paymentRoutes");
+app.use("/api/payment", paymentRoutes);
 
 require('./config/connection')
 const StoreServer = express();

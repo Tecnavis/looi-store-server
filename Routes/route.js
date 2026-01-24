@@ -18,7 +18,8 @@ const razorpayController=require('../controller/razorpayController')
 const orderController=require('../controller/orderController')
 const invoiceController=require('../controller/invoiceController')
 
-const upload = require('../config/multerconfig');
+const upload = require("../middleware/uploadCloudinary");
+
 
 router.post('/admin-register',adminController.registerAdmin);
 
