@@ -15,7 +15,8 @@ exports.postBanner = asyncHandler(async (req, res) => {
     return res.status(400).json({ message: 'Main category is required' });
   }
 
-  const imagePaths = req.files.map(file => file.filename);
+  // ✅ Cloudinary gives file.path as URL. fallback to filename for local storage
+  const imagePaths = req.files.map(file => file.path || file.filename);
 
   try {
     const newBanner = new BannerModel({
@@ -176,7 +177,7 @@ exports.getBannerById = asyncHandler(async (req, res) => {
   
     // Process files if present
     const files = req.files || [];
-    const imagePaths = files.map(file => file.filename);
+    const imagePaths = files.map(file => file.path || file.filename);
   
     try {
       // Validate the ID format

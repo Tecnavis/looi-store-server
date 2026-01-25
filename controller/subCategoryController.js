@@ -44,7 +44,8 @@ exports.postSubCategories = async (req, res) => {
         return res.status(400).json({ message: 'No subcategory images uploaded' });
     }
 
-    const imagePaths = req.files.map(file => file.filename); // Assuming you're using multer or a similar middleware for file uploads
+    // ✅ Cloudinary gives file.path as URL. fallback to filename for local storage
+    const imagePaths = req.files.map(file => file.path || file.filename);
 
     try {
         // Create the new subcategory with image paths
