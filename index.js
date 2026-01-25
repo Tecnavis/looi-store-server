@@ -36,7 +36,7 @@ StoreServer.use("/api", routes);
 
 // ✅ Payment Routes (make sure this path is correct)
 // if your folder is src/routes/paymentRoutes then use "./routes/paymentRoutes"
-const paymentRoutes = require("./routes/paymentRoutes");
+const paymentRoutes = require("./paymentRoutes");
 StoreServer.use("/api/payment", paymentRoutes);
 
 // ✅ Default route
