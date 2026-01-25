@@ -71,15 +71,24 @@ exports.postSubCategories = async (req, res) => {
 };
 
 exports.getSubCategories = async (req, res) => {
-    try {
-       
-        const response = await Subcategories.find().populate('category');
-        res.status(200).json(response);
-    } catch (err) {
-        console.error(err);
-        res.status(500).send('An error occurred while fetching data');
-    }
+  try {
+    let response = await Subcategories.find().populate("category");
+
+    if (!Array.isArray(response)) response = [];
+
+    return res.status(200).json({
+      success: true,
+      subcategories: response,
+    });
+  } catch (err) {
+    console.error(err);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching subcategories",
+    });
+  }
 };
+
 
 
 exports.getCategoriesById = async (req, res) => {

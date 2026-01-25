@@ -91,8 +91,20 @@ exports.postCategories = async (req, res) => {
 
 exports.getCategories = async (req, res) => {
   try {
-    const response = await CategoryModel.find()
-      .populate("maincategoriesData");
+    let response = await CategoryModel.find().populate("maincategoriesData");
+
+    // ✅ Force always array
+    if (!Array.isArray(response)) response = [];
+
+    // ✅ Ensure each category has maincategoriesData always array
+    response = response.map((cat) => ({
+      ...cat._doc,
+      maincategoriesData: Array.isArray(cat.maincategoriesData)
+        ? cat.maincategoriesData
+        : cat.maincategoriesData
+        ? [cat.maincategoriesData]
+        : [],
+    }));
 
     return res.status(200).json({
       success: true,
@@ -103,10 +115,10 @@ exports.getCategories = async (req, res) => {
     return res.status(500).json({
       success: false,
       message: "An error occurred while fetching categories",
-      error: err.message,
     });
   }
 };
+
 
 
 exports.getCategoriesById = async (req, res) => {
