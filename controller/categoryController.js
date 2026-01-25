@@ -125,21 +125,21 @@ exports.getCategoriesById = async (req, res) => {
   const { id } = req.params;
 
   try {
-    const response = await CategoryModel.findById(id).populate("maincategoriesData");
+    const response = await Subcategories.findById(id).populate("category");
 
     return res.status(200).json({
       success: true,
-      category: response,
+      subcategory: response,
     });
   } catch (err) {
-    console.error("Error fetching category by id:", err);
+    console.error(err);
     return res.status(500).json({
       success: false,
-      message: "An error occurred while fetching category by id",
-      error: err.message,
+      message: "An error occurred while fetching subcategory",
     });
   }
 };
+
 
 
 
