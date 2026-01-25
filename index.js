@@ -5,6 +5,10 @@ const express = require("express");
 const router = require('./Routes/route');
 var path=require('path')
 
+const routes = require("./src/Routes/route");
+app.use("/api", routes);
+
+
 const paymentRoutes = require("./routes/paymentRoutes");
 app.use("/api/payment", paymentRoutes);
 

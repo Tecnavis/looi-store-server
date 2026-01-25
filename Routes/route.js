@@ -19,6 +19,10 @@ const orderController=require('../controller/orderController')
 const invoiceController=require('../controller/invoiceController')
 
 const upload = require("../middleware/uploadCloudinary");
+const { placeOrder } = require("../controller/orderController");
+
+router.post("/place", placeOrder);
+
 
 
 router.post('/admin-register',adminController.registerAdmin);

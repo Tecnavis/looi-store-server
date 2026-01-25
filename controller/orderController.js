@@ -555,4 +555,3 @@ exports.placeOrder = async (req, res) => {
   }
 };
 
-router.post("/place", placeOrder);
