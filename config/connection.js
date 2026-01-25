@@ -1,10 +1,22 @@
-require('dotenv').config();
-const mongoose=require('mongoose')
+require("dotenv").config();
+const mongoose = require("mongoose");
 
-mongoose.connect( process.env.CONNECTION_STRING).then(result=>{
-    
-    console.log("MongoDB Atlas connected with Storeserver");
-}).catch(err=>{
-    console.log("connection failed");
+const CONNECTION_STRING =
+  process.env.CONNECTION_STRING || process.env.MONGO_URI;
+
+if (!CONNECTION_STRING) {
+  console.error("❌ MongoDB connection string is missing!");
+  console.error("Add CONNECTION_STRING or MONGO_URI in Render environment variables.");
+  process.exit(1);
+}
+
+mongoose
+  .connect(CONNECTION_STRING)
+  .then(() => {
+    console.log("✅ MongoDB Atlas connected with StoreServer");
+  })
+  .catch((err) => {
+    console.log("❌ MongoDB connection failed");
     console.log(err);
-})
+    process.exit(1);
+  });
