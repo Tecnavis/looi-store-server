@@ -9,6 +9,25 @@ router.post("/create", upload.single("image"), async (req, res) => {
     const product = new Product({
       name,
       price,
+      maincategory: category,
+      description,
+      totalStock: stock || 0,
+      coverImage: req.file.path, // ✅ Cloudinary URL
+      sizes: [],
+    });
+
+    await product.save();
+    return res.status(201).json({ message: "Product created", product });
+  } catch (err) {
+    console.log(err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+    }
+
+    const product = new Product({
+      name,
+      price,
       category,
       description,
       stock,
