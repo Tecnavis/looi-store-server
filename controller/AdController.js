@@ -9,8 +9,8 @@ exports.addBanner = asyncHandler(async (req, res) => {
             return res.status(400).json({ message: "Image is required" });
         }
 
-        // Get the file path of the uploaded image
-        const imagePath = req.file.filename;  // Use req.file to get the filename
+        // ✅ Cloudinary gives file.path as URL. fallback to filename for local storage
+        const imagePath = req.file.path || req.file.filename;
 
         const newBanner = new AdBannerModel({
             image: imagePath  // Store the single image path in the database
