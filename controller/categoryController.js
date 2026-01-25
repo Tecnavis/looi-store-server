@@ -90,15 +90,24 @@ exports.postCategories = async (req, res) => {
 
 
 exports.getCategories = async (req, res) => {
-    try {
-        // Populate maincategoriesData with actual data
-        const response = await CategoryModel.find().populate('maincategoriesData');
-        res.status(200).json(response);
-    } catch (err) {
-        console.error(err);
-        res.status(500).send('An error occurred while fetching data');
-    }
+  try {
+    const response = await CategoryModel.find()
+      .populate("maincategoriesData");
+
+    return res.status(200).json({
+      success: true,
+      categories: response,
+    });
+  } catch (err) {
+    console.error("Error fetching categories:", err);
+    return res.status(500).json({
+      success: false,
+      message: "An error occurred while fetching categories",
+      error: err.message,
+    });
+  }
 };
+
 
 exports.getCategoriesById = async (req, res) => {
     const { id } = req.params;
