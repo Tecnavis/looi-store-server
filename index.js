@@ -1,12 +1,15 @@
 // index.js
 require("dotenv").config();
-const express = require("express");
 const cors = require("cors");
+const express = require("express");
 const path = require("path");
 
 require("./config/connection");
 
 const StoreServer = express();
+
+// ✅ Static uploads
+StoreServer.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // ✅ CORS
 StoreServer.use(
@@ -23,20 +26,15 @@ StoreServer.use(
   })
 );
 
-// ✅ Middleware
 StoreServer.use(express.json());
 StoreServer.use(express.urlencoded({ extended: true }));
 
-// ✅ Static uploads
-StoreServer.use("/uploads", express.static(path.join(__dirname, "uploads")));
-
-// ✅ Routes
-const routes = require("./Routes/route"); // keep same as your folder name
+// ✅ Main API route file
+const routes = require("./Routes/route");
 StoreServer.use("/api", routes);
 
-// ✅ Payment Routes (make sure this path is correct)
-// if your folder is src/routes/paymentRoutes then use "./routes/paymentRoutes"
-const paymentRoutes = require("./paymentRoutes");
+// ✅ Payment routes file (your project has Routes/paymentRoutes.js)
+const paymentRoutes = require("./Routes/paymentRoutes");
 StoreServer.use("/api/payment", paymentRoutes);
 
 // ✅ Default route
