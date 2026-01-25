@@ -47,20 +47,17 @@ exports.postCategories = async (req, res) => {
     }
 
     if (!maincategoriesData) {
-      return res
-        .status(400)
-        .json({ message: "Main category is required" });
+      return res.status(400).json({ message: "Main category is required" });
     }
 
-    // ✅ Support both req.files and req.file (Cloudinary/Multer)
+    // ✅ Support both req.files and req.file
     const files = req.files || (req.file ? [req.file] : []);
 
-    if (!files || files.length === 0) {
-      return res.status(400).json({ message: "No category images uploaded" });
-    }
-
-    // ✅ Cloudinary usually gives .path (url) not filename
-    const imagePaths = files.map((file) => file.path || file.filename);
+    // ✅ OPTIONAL images (no validation error)
+    const imagePaths =
+      files && files.length > 0
+        ? files.map((file) => file.path || file.filename)
+        : [];
 
     // ✅ Check if category already exists
     const existingCategory = await CategoryModel.findOne({
@@ -71,11 +68,11 @@ exports.postCategories = async (req, res) => {
       return res.status(406).json({ message: "Category already exists" });
     }
 
-    // ✅ Save category
+    // ✅ Save category (images optional)
     const newCategory = await CategoryModel.create({
       name: name,
       maincategoriesData: maincategoriesData,
-      images: imagePaths,
+      images: imagePaths, // can be empty []
     });
 
     return res.status(200).json({
@@ -89,6 +86,7 @@ exports.postCategories = async (req, res) => {
     });
   }
 };
+
 
 
 exports.getCategories = async (req, res) => {
