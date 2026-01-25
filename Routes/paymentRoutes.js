@@ -3,7 +3,7 @@ const router = express.Router();
 const {
   createRazorpayOrder,
   verifyRazorpayPayment,
-} = require("../controllers/paymentController");
+} = require("../controller/paymentController");
 
 router.post("/create-order", createRazorpayOrder);
 router.post("/verify", verifyRazorpayPayment);
