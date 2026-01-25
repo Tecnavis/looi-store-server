@@ -39,7 +39,7 @@ router.delete('/delete-maincategory/:id',jwtMiddleware, mainCategoryController.d
 router.get('/maincategoriescount',jwtMiddleware, mainCategoryController.countMaincategories);
 
 // category
-router.post('/add-category',jwtMiddleware,upload.array('images',1),categoryController.postCategories);
+router.post('/add-category',jwtMiddleware,upload.single('images'),categoryController.postCategories);
 router.get('/get-category',  categoryController.getCategories);
 router.get('/get-categoryid/:id', jwtMiddleware, categoryController.getCategoriesById);
 router.put('/update-categoryid/:id', jwtMiddleware,categoryController.updateCategoriesById);
