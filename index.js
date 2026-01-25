@@ -1,42 +1,53 @@
 // index.js
-require('dotenv').config();
-const cors = require('cors');
+require("dotenv").config();
 const express = require("express");
-const router = require('./Routes/route');
-var path=require('path')
+const cors = require("cors");
+const path = require("path");
 
-const routes = require("./Routes/route");
-app.use("/api", routes);
+require("./config/connection");
 
-
-const paymentRoutes = require("./routes/paymentRoutes");
-app.use("/api/payment", paymentRoutes);
-
-require('./config/connection')
 const StoreServer = express();
-StoreServer.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-StoreServer.use(cors());
-StoreServer.use(cors({
-    origin: ['http://localhost:5173', 'https://looi.in',"https://admin.looi.in","http://localhost:5174","https://www.looi.in"],
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+
+// ✅ CORS
+StoreServer.use(
+  cors({
+    origin: [
+      "http://localhost:5173",
+      "http://localhost:5174",
+      "https://looi.in",
+      "https://www.looi.in",
+      "https://admin.looi.in",
+    ],
+    methods: ["GET", "POST", "PUT", "DELETE"],
     credentials: true,
-  }));
-  
+  })
+);
+
+// ✅ Middleware
 StoreServer.use(express.json());
 StoreServer.use(express.urlencoded({ extended: true }));
 
+// ✅ Static uploads
+StoreServer.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
-const PORT = process.env.PORT || 8000;
+// ✅ Routes
+const routes = require("./Routes/route"); // keep same as your folder name
+StoreServer.use("/api", routes);
 
-// Routes
-StoreServer.use(router);
+// ✅ Payment Routes (make sure this path is correct)
+// if your folder is src/routes/paymentRoutes then use "./routes/paymentRoutes"
+const paymentRoutes = require("./routes/paymentRoutes");
+StoreServer.use("/api/payment", paymentRoutes);
 
-// Start the server
-StoreServer.listen(PORT, () => {
-    console.log(`Project server started at port ${PORT}`);
+// ✅ Default route
+StoreServer.get("/", (req, res) => {
+  res
+    .status(200)
+    .send(`<h1>Project server started and waiting for client request</h1>`);
 });
 
-// Default route
-StoreServer.get("/", (req, res) => {
-    res.status(200).send(`<h1>Project server started and waiting for client request</h1>`);
+// ✅ Start server
+const PORT = process.env.PORT || 8000;
+StoreServer.listen(PORT, () => {
+  console.log(`Project server started at port ${PORT}`);
 });
