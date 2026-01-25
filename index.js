@@ -5,7 +5,7 @@ const express = require("express");
 const router = require('./Routes/route');
 var path=require('path')
 
-const routes = require("./src/Routes/route");
+const routes = require("./Routes/route");
 app.use("/api", routes);
 
 
