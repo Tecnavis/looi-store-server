@@ -6,8 +6,7 @@ const { updateStock } = require("../services/stockService");
 const OrderCount = require("../models/orderCountModel");
 const sendEmail = require("../utils/emailService");
 
-// Shiprocket removed completely
-
+// ✅ Generate OrderId
 const generateOrderId = () => {
   return `ORD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 };
@@ -80,7 +79,7 @@ exports.createOrder = async (req, res) => {
         });
       }
 
-      // Enrich order item
+      // Enrich order item ✅ productId field
       enrichedOrderItems.push({
         ...item,
         productId: product._id,
@@ -101,10 +100,10 @@ exports.createOrder = async (req, res) => {
       orderItems: enrichedOrderItems,
       shippingAddress,
       paymentMethod,
-      paymentStatus,
+      paymentStatus: paymentStatus || (paymentMethod === "COD" ? "PENDING" : "PAID"),
       totalAmount,
-      razorpayOrderId,
-      razorpayPaymentId,
+      razorpayOrderId: razorpayOrderId || null,
+      razorpayPaymentId: razorpayPaymentId || null,
       email,
       orderStatus: "Pending",
       orderDate: new Date(),
@@ -135,18 +134,20 @@ exports.createOrder = async (req, res) => {
       )
       .join("");
 
-    await sendEmail(
-      order.email,
-      "Order Confirmation",
-      `Your order #${order.orderId} has been placed successfully.`,
-      `
-        <p>Thank you for your order! Your order ID is <strong>${order.orderId}</strong>.</p>
-        <p><strong>Order Details:</strong></p>
-        <ul>${orderItemsHtml}</ul>
-        <p><strong>Total Amount:</strong> ₹${order.totalAmount}</p>
-        <p>We will notify you when your order is shipped.</p>
-      `
-    );
+    if (order.email) {
+      await sendEmail(
+        order.email,
+        "Order Confirmation",
+        `Your order #${order.orderId} has been placed successfully.`,
+        `
+          <p>Thank you for your order! Your order ID is <strong>${order.orderId}</strong>.</p>
+          <p><strong>Order Details:</strong></p>
+          <ul>${orderItemsHtml}</ul>
+          <p><strong>Total Amount:</strong> ₹${order.totalAmount}</p>
+          <p>We will notify you when your order is shipped.</p>
+        `
+      );
+    }
 
     // Update user's orders
     await User.findByIdAndUpdate(user, { $push: { orders: order._id } }, { new: true });
@@ -193,7 +194,7 @@ exports.getAllOrders = async (req, res) => {
         select: "name email",
       })
       .populate({
-        path: "orderItems.product_id",
+        path: "orderItems.productId",
         model: "Product",
         select: "name price coverImage",
       })
@@ -227,7 +228,7 @@ exports.getOrderById = async (req, res) => {
         select: "name email",
       })
       .populate({
-        path: "orderItems.product_id",
+        path: "orderItems.productId",
         model: "Product",
         select: "name price coverImage",
       });
@@ -260,7 +261,11 @@ exports.updateOrderById = async (req, res) => {
     const { orderId } = req.params;
     const updatedData = req.body;
 
-    const updatedOrder = await Order.findByIdAndUpdate(orderId, { $set: updatedData }, { new: true });
+    const updatedOrder = await Order.findByIdAndUpdate(
+      orderId,
+      { $set: updatedData },
+      { new: true }
+    );
 
     if (!updatedOrder) {
       return res.status(404).json({
@@ -287,11 +292,18 @@ exports.updateOrderById = async (req, res) => {
 // ✅ GET ORDERS BY USER
 exports.getOrdersByUser = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user?._id;
+
+    if (!userId) {
+      return res.status(401).json({
+        success: false,
+        message: "Unauthorized - user not found",
+      });
+    }
 
     const orders = await Order.find({ user: userId })
       .populate({
-        path: "orderItems.product_id",
+        path: "orderItems.productId",
         model: "Product",
         select: "name price coverImage",
       })
@@ -358,7 +370,7 @@ exports.getOrdersByDay = async (req, res) => {
   }
 };
 
-// ✅ CANCEL ORDER (Shiprocket Removed)
+// ✅ CANCEL ORDER
 exports.cancelOrder = async (req, res) => {
   const { orderId } = req.params;
 
@@ -390,20 +402,22 @@ exports.cancelOrder = async (req, res) => {
     order.cancellationReason = req.body.reason || "Customer requested cancellation";
     await order.save();
 
-    await sendEmail(
-      order.email,
-      "Order Cancellation Confirmation",
-      `Your order #${order.orderId} has been cancelled successfully.`,
-      `
-        <h2>Order Cancellation Confirmation</h2>
-        <p>Your order #${order.orderId} has been cancelled successfully.</p>
-        <h3>Cancellation Details:</h3>
-        <ul>
-          <li>Order Amount: ₹${order.totalAmount}</li>
-          <li>Cancellation Date: ${new Date().toLocaleDateString()}</li>
-        </ul>
-      `
-    );
+    if (order.email) {
+      await sendEmail(
+        order.email,
+        "Order Cancellation Confirmation",
+        `Your order #${order.orderId} has been cancelled successfully.`,
+        `
+          <h2>Order Cancellation Confirmation</h2>
+          <p>Your order #${order.orderId} has been cancelled successfully.</p>
+          <h3>Cancellation Details:</h3>
+          <ul>
+            <li>Order Amount: ₹${order.totalAmount}</li>
+            <li>Cancellation Date: ${new Date().toLocaleDateString()}</li>
+          </ul>
+        `
+      );
+    }
 
     return res.status(200).json({
       success: true,
@@ -462,20 +476,22 @@ exports.markOrderAsDelivered = async (req, res) => {
       )
       .join("");
 
-    await sendEmail(
-      order.email,
-      "Order Delivered Successfully",
-      `Your order #${order.orderId} has been delivered successfully.`,
-      `
-        <p>Dear Customer,</p>
-        <p>We are pleased to inform you that your order <strong>#${order.orderId}</strong> has been delivered successfully.</p>
-        <p><strong>Order Details:</strong></p>
-        <ul>${orderItemsHtml}</ul>
-        <p><strong>Total Amount:</strong> ₹${order.totalAmount}</p>
-        <p>Thank you for shopping with us! We hope you enjoy your purchase.</p>
-        <p>If you have any questions, feel free to contact us.</p>
-      `
-    );
+    if (order.email) {
+      await sendEmail(
+        order.email,
+        "Order Delivered Successfully",
+        `Your order #${order.orderId} has been delivered successfully.`,
+        `
+          <p>Dear Customer,</p>
+          <p>We are pleased to inform you that your order <strong>#${order.orderId}</strong> has been delivered successfully.</p>
+          <p><strong>Order Details:</strong></p>
+          <ul>${orderItemsHtml}</ul>
+          <p><strong>Total Amount:</strong> ₹${order.totalAmount}</p>
+          <p>Thank you for shopping with us! We hope you enjoy your purchase.</p>
+          <p>If you have any questions, feel free to contact us.</p>
+        `
+      );
+    }
 
     return res.status(200).json({
       success: true,
@@ -512,46 +528,69 @@ exports.deleteOrderById = async (req, res) => {
   }
 };
 
+// ✅ FIXED PLACE ORDER (COD + Razorpay both work)
 exports.placeOrder = async (req, res) => {
   try {
     const {
       userId,
+      user, // frontend may send "user"
       items,
+      orderItems, // frontend may send "orderItems"
       address,
+      shippingAddress, // frontend may send "shippingAddress"
       totalAmount,
       paymentMethod, // "COD" or "RAZORPAY"
-      paymentStatus, // "PENDING" or "PAID"
-      transactionId, // razorpay_payment_id (optional)
+      paymentStatus,
+      transactionId,
+      razorpayOrderId,
+      razorpayPaymentId,
+      email,
     } = req.body;
 
-    if (!items || items.length === 0) {
-      return res.status(400).json({ message: "Cart is empty" });
+    const finalUser = userId || user;
+    const finalItems = items || orderItems;
+    const finalAddress = address || shippingAddress;
+
+    if (!finalUser) {
+      return res.status(400).json({ success: false, message: "User is required" });
     }
 
-    if (!address) {
-      return res.status(400).json({ message: "Address is required" });
+    if (!finalItems || finalItems.length === 0) {
+      return res.status(400).json({ success: false, message: "Cart is empty" });
     }
 
-    const order = new Order({
-      userId,
-      items,
-      address,
+    if (!finalAddress) {
+      return res.status(400).json({ success: false, message: "Address is required" });
+    }
+
+    // ✅ payment status rules
+    let finalPaymentStatus = paymentStatus;
+    if (!finalPaymentStatus) {
+      finalPaymentStatus = paymentMethod === "COD" ? "PENDING" : "PAID";
+    }
+
+    const order = await Order.create({
+      orderId: generateOrderId(),
+      user: finalUser,
+      orderItems: finalItems,
+      shippingAddress: finalAddress,
       totalAmount,
       paymentMethod,
-      paymentStatus: paymentMethod === "COD" ? "PENDING" : "PAID",
-      transactionId: transactionId || null,
-      orderStatus: "PLACED",
+      paymentStatus: finalPaymentStatus,
+      razorpayOrderId: razorpayOrderId || null,
+      razorpayPaymentId: razorpayPaymentId || transactionId || null,
+      email: email || null,
+      orderStatus: "Pending",
+      orderDate: new Date(),
     });
 
-    await order.save();
-
     return res.status(201).json({
+      success: true,
       message: "Order placed successfully",
       order,
     });
   } catch (err) {
     console.log("placeOrder error:", err);
-    return res.status(500).json({ message: "Failed to place order" });
+    return res.status(500).json({ success: false, message: "Failed to place order" });
   }
 };
-
