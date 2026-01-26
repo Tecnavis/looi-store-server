@@ -11,7 +11,7 @@ const generateOrderId = () => {
   return `ORD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 };
 
-// ✅ CREATE ORDER (Shiprocket Removed)
+// ✅ CREATE ORDER (Shiprocket Removed) - FINAL FIXED
 exports.createOrder = async (req, res) => {
   try {
     const {
@@ -26,7 +26,7 @@ exports.createOrder = async (req, res) => {
       email,
     } = req.body;
 
-    // Validate required fields
+    // ✅ Validate required fields
     if (!user || !orderItems || !shippingAddress || !paymentMethod || !totalAmount) {
       return res.status(400).json({
         success: false,
@@ -34,7 +34,14 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    // Validate and enrich order items with product details
+    if (!Array.isArray(orderItems) || orderItems.length === 0) {
+      return res.status(400).json({
+        success: false,
+        message: "Order items cannot be empty",
+      });
+    }
+
+    // ✅ Validate and enrich order items with product details
     const enrichedOrderItems = [];
 
     for (let item of orderItems) {
@@ -45,8 +52,11 @@ exports.createOrder = async (req, res) => {
         });
       }
 
-      // Find product
-      const product = await Product.findOne({ name: item.productName });
+      // ✅ Find product (CASE INSENSITIVE FIX)
+      const product = await Product.findOne({
+        name: { $regex: new RegExp("^" + item.productName + "$", "i") },
+      });
+
       if (!product) {
         return res.status(400).json({
           success: false,
@@ -54,34 +64,39 @@ exports.createOrder = async (req, res) => {
         });
       }
 
-      // Validate size & color
-      const sizeObj = product.sizes.find((s) => s.size === item.size);
+      // ✅ Validate size
+      const sizeObj = product.sizes?.find((s) => s.size === item.size);
       if (!sizeObj) {
         return res.status(400).json({
           success: false,
-          message: `Size ${item.size} not found for product ${item.productName}`,
+          message: `Size ${item.size} not found for product ${product.name}`,
         });
       }
 
-      const colorObj = sizeObj.colors.find((c) => c.color === item.color);
+      // ✅ Validate color
+      const colorObj = sizeObj.colors?.find((c) => c.color === item.color);
       if (!colorObj) {
         return res.status(400).json({
           success: false,
-          message: `Color ${item.color} not found for size ${item.size} in product ${item.productName}`,
+          message: `Color ${item.color} not found for size ${item.size} in product ${product.name}`,
         });
       }
 
-      // Check stock
-      if (colorObj.stock < item.quantity) {
+      // ✅ Check stock
+      if (Number(colorObj.stock) < Number(item.quantity)) {
         return res.status(400).json({
           success: false,
-          message: `Insufficient stock for ${item.productName} in size ${item.size} and color ${item.color}`,
+          message: `Insufficient stock for ${product.name} (Size: ${item.size}, Color: ${item.color})`,
         });
       }
 
-      // Enrich order item ✅ productId field
+      // ✅ Enrich order item with product details
       enrichedOrderItems.push({
-        ...item,
+        productName: product.name,
+        quantity: item.quantity,
+        price: item.price,
+        color: item.color,
+        size: item.size,
         productId: product._id,
         coverImage: product.coverImage,
         hsn: product.hsn,
@@ -93,7 +108,7 @@ exports.createOrder = async (req, res) => {
       });
     }
 
-    // Create order in DB
+    // ✅ Create order in DB
     const orderData = {
       orderId: generateOrderId(),
       user,
@@ -111,16 +126,22 @@ exports.createOrder = async (req, res) => {
 
     const order = await Order.create(orderData);
 
-    // Update stock
+    // ✅ Update stock
     for (let item of enrichedOrderItems) {
       const product = await Product.findById(item.productId);
+      if (!product) continue;
+
       const size = product.sizes.find((s) => s.size === item.size);
+      if (!size) continue;
+
       const color = size.colors.find((c) => c.color === item.color);
-      color.stock -= item.quantity;
+      if (!color) continue;
+
+      color.stock = Number(color.stock) - Number(item.quantity);
       await product.save();
     }
 
-    // Send confirmation email
+    // ✅ Send confirmation email
     const orderItemsHtml = enrichedOrderItems
       .map(
         (item) => `
@@ -149,7 +170,7 @@ exports.createOrder = async (req, res) => {
       );
     }
 
-    // Update user's orders
+    // ✅ Update user orders list
     await User.findByIdAndUpdate(user, { $push: { orders: order._id } }, { new: true });
 
     return res.status(200).json({
@@ -528,18 +549,18 @@ exports.deleteOrderById = async (req, res) => {
   }
 };
 
-// ✅ FIXED PLACE ORDER (COD + Razorpay both work)
+// ✅ PLACE ORDER (COD + Razorpay) - FINAL FIXED
 exports.placeOrder = async (req, res) => {
   try {
     const {
       userId,
-      user, // frontend may send "user"
+      user,
       items,
-      orderItems, // frontend may send "orderItems"
+      orderItems,
       address,
-      shippingAddress, // frontend may send "shippingAddress"
+      shippingAddress,
       totalAmount,
-      paymentMethod, // "COD" or "RAZORPAY"
+      paymentMethod,
       paymentStatus,
       transactionId,
       razorpayOrderId,
@@ -547,7 +568,7 @@ exports.placeOrder = async (req, res) => {
       email,
     } = req.body;
 
-    const finalUser = userId || user;
+    const finalUser = userId || user || req.user?._id;
     const finalItems = items || orderItems;
     const finalAddress = address || shippingAddress;
 
@@ -555,7 +576,7 @@ exports.placeOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "User is required" });
     }
 
-    if (!finalItems || finalItems.length === 0) {
+    if (!finalItems || !Array.isArray(finalItems) || finalItems.length === 0) {
       return res.status(400).json({ success: false, message: "Cart is empty" });
     }
 
@@ -563,34 +584,34 @@ exports.placeOrder = async (req, res) => {
       return res.status(400).json({ success: false, message: "Address is required" });
     }
 
-    // ✅ payment status rules
-    let finalPaymentStatus = paymentStatus;
-    if (!finalPaymentStatus) {
-      finalPaymentStatus = paymentMethod === "COD" ? "PENDING" : "PAID";
-    }
+    // ✅ Normalize items to match createOrder() schema
+    const normalizedItems = finalItems.map((item) => ({
+      productName: item.productName || item.name,
+      quantity: item.quantity,
+      price: item.price,
+      size: item.size,
+      color: item.color,
+    }));
 
-    const order = await Order.create({
-      orderId: generateOrderId(),
+    req.body = {
       user: finalUser,
-      orderItems: finalItems,
+      orderItems: normalizedItems,
       shippingAddress: finalAddress,
+      paymentMethod: paymentMethod || "COD",
+      paymentStatus: paymentStatus || (paymentMethod === "COD" ? "PENDING" : "PAID"),
       totalAmount,
-      paymentMethod,
-      paymentStatus: finalPaymentStatus,
       razorpayOrderId: razorpayOrderId || null,
       razorpayPaymentId: razorpayPaymentId || transactionId || null,
-      email: email || null,
-      orderStatus: "Pending",
-      orderDate: new Date(),
-    });
+      email,
+    };
 
-    return res.status(201).json({
-      success: true,
-      message: "Order placed successfully",
-      order,
-    });
+    return exports.createOrder(req, res);
   } catch (err) {
     console.log("placeOrder error:", err);
-    return res.status(500).json({ success: false, message: "Failed to place order" });
+    return res.status(500).json({
+      success: false,
+      message: "Failed to place order",
+      error: err.message,
+    });
   }
 };

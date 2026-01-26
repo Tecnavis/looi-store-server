@@ -20,7 +20,8 @@ const invoiceController=require('../controller/invoiceController')
 
 const upload = require("../middleware/uploadCloudinary");
 
-router.post("/place", orderController.placeOrder);
+router.post("/place", jwtMiddleware, orderController.placeOrder);
+
 
 
 
