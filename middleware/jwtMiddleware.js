@@ -1,29 +1,29 @@
-const jwt = require("jsonwebtoken");
-const User = require("../models/userModel");
+const jwt = require('jsonwebtoken');
 
-const jwtMiddleware = async (req, res, next) => {
-  try {
-    const authHeader = req.headers.authorization;
+const jwtMiddleware = (req, res, next) => {
+   console.log("Inside JWT Middleware!!!");
+   
+   // Log all the headers to debug
+   console.log("Headers: ", req.headers);
 
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ message: "No token provided" });
-    }
+   const authHeader = req.headers["authorization"];
+   
+   if (authHeader && authHeader.startsWith("Bearer ")) {
+       const token = authHeader.split(" ")[1];
+       console.log(token);
 
-    const token = authHeader.split(" ")[1];
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-
-    const user = await User.findById(decoded.id).select("-password");
-
-    if (!user) {
-      return res.status(401).json({ message: "User not found" });
-    }
-
-    req.user = user; // 🔥 THIS IS REQUIRED
-    next();
-  } catch (error) {
-    return res.status(401).json({ message: "Invalid token" });
-  }
+       try {
+           const jwtResponse = jwt.verify(token, process.env.JWT_SECRET);
+           console.log(jwtResponse);
+           req.payload = jwtResponse.userId;
+           req.user = { _id: jwtResponse.userId };
+           next();
+       } catch (err) {
+           return res.status(401).json("Authorization failed... Please login!!!");
+       }
+   } else {
+       return res.status(406).json("Authorization header is missing or improperly formatted");
+   }
 };
 
 module.exports = jwtMiddleware;
