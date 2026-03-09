@@ -2,10 +2,10 @@ const express = require("express");
 const cors = require("cors");
 require("dotenv").config();
 
-const orderRoutes = require("./routes/orderRoutes");
-const productRoutes = require("./routes/productRoutes");
-const paymentRoutes = require("./routes/paymentRoutes");
-const dashboardRoutes = require("./routes/dashboard");
+const orderRoutes = require("./Routes/orderRoutes");
+const productRoutes = require("./Routes/productRoutes");
+const paymentRoutes = require("./Routes/paymentRoutes");
+const dashboardRoutes = require("./Routes/dashboard");
 
 const app = express();
 
