@@ -1,21 +1,20 @@
 const express = require("express");
-const mongoose = require("mongoose");
 const cors = require("cors");
 require("dotenv").config();
 
 const orderRoutes = require("./Routes/OrderRoutes");
-const dashboardRoutes = require("./routes/dashboard");
+const dashboardRoutes = require("./Routes/dashboard");
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
-mongoose.connect("mongodb://127.0.0.1:27017/looi-store");
+app.use("/api/orders", orderRoutes);
+app.use("/api/dashboard", dashboardRoutes);
 
-app.use("/api",orderRoutes);
-app.use("/api",dashboardRoutes);
+const PORT = process.env.PORT || 5000;
 
-app.listen(5000,()=>{
-console.log("Server running on port 5000");
+app.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
 });
