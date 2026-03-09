@@ -152,7 +152,6 @@ orderSchema.pre('save', async function(next) {
     }
 });
 
-const Order = mongoose.model('Order', orderSchema);
-module.exports = Order;
-
+// Prevent overwrite model error
+module.exports = mongoose.models.Order || mongoose.model('Order', orderSchema);
 
