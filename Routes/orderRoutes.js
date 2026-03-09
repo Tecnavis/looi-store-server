@@ -4,43 +4,98 @@ const router = express.Router();
 const Order = require("../models/order");
 const generateInvoice = require("../utils/invoice");
 
-router.post("/orders", async(req,res)=>{
+// Create order
+router.post("/", async (req, res) => {
+  try {
 
-try{
+    const order = new Order(req.body);
 
-const order = new Order(req.body);
+    await order.save();
 
-await order.save();
+    generateInvoice(order);
 
-generateInvoice(order);
+    res.json({
+      success: true,
+      order
+    });
 
-res.json({
-success:true,
-order
+  } catch (err) {
+
+    res.status(500).json({
+      error: err.message
+    });
+
+  }
 });
 
-}catch(err){
 
-res.status(500).json({error:err.message})
+// Get all orders
+router.get("/", async (req, res) => {
+  try {
 
-}
+    const orders = await Order.find().sort({ createdAt: -1 });
 
+    res.json(orders);
+
+  } catch (err) {
+
+    res.status(500).json({
+      error: err.message
+    });
+
+  }
 });
 
-router.get("/orders", async(req,res)=>{
 
-const orders = await Order.find().sort({createdAt:-1});
+// Update entire order
+router.put("/:id", async (req, res) => {
+  try {
 
-res.json(orders);
+    const order = await Order.findByIdAndUpdate(
+      req.params.id,
+      req.body,
+      { new: true }
+    );
 
+    res.json({
+      success: true,
+      order
+    });
+
+  } catch (err) {
+
+    res.status(500).json({
+      error: err.message
+    });
+
+  }
 });
 
-router.put("/orders/:id", async(req,res)=>{
 
-await Order.findByIdAndUpdate(req.params.id,req.body);
+// Update order status only
+router.put("/status/:id", async (req, res) => {
+  try {
 
-res.json({message:"updated"});
+    const { status } = req.body;
 
+    const order = await Order.findByIdAndUpdate(
+      req.params.id,
+      { orderStatus: status },
+      { new: true }
+    );
+
+    res.json({
+      success: true,
+      order
+    });
+
+  } catch (error) {
+
+    res.status(500).json({
+      message: "Failed to update order status"
+    });
+
+  }
 });
 
 module.exports = router;
