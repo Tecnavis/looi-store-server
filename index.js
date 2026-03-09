@@ -9,6 +9,11 @@ const productRoutes = require("./Routes/productRoutes");
 const paymentRoutes = require("./Routes/paymentRoutes");
 const dashboardRoutes = require("./Routes/dashboardRoutes");
 const adminRoutes = require("./Routes/adminRoutes");
+const mongoose = require("mongoose");
+
+mongoose.connect(process.env.MONGO_URI)
+.then(()=>console.log("MongoDB Connected"))
+.catch(err=>console.log(err));
 
 app.use(cors());
 app.use(express.json());
