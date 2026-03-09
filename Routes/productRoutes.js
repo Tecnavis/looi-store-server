@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 
-const Product = require("../models/Product");
+const Product = require("../models/productModel");
 const upload = require("../middleware/upload"); // your multer/cloudinary middleware
 
 // Create Product
