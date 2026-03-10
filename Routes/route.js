@@ -39,19 +39,40 @@ router.put('/update-maincategoryid/:id', jwtMiddleware, mainCategoryController.u
 router.delete('/delete-maincategory/:id',jwtMiddleware, mainCategoryController.deleteMaincategoriesById);
 router.get('/maincategoriescount',jwtMiddleware, mainCategoryController.countMaincategories);
 
-// category
+/// category
 router.post(
   "/add-category",
   jwtMiddleware,
-  upload.any(),
+  upload.array("images", 5),
   categoryController.postCategories
 );
-router.get('/get-category',  categoryController.getCategories);
-router.get('/get-categoryid/:id', jwtMiddleware, categoryController.getCategoriesById);
-router.put('/update-categoryid/:id', jwtMiddleware,categoryController.updateCategoriesById);
-router.delete('/delete-category/:id',jwtMiddleware, categoryController.deleteCategoriesById);
-router.get('/categoriescount',jwtMiddleware,categoryController.countCategories);
 
+router.get("/get-category", categoryController.getCategories);
+
+router.get(
+  "/get-categoryid/:id",
+  jwtMiddleware,
+  categoryController.getCategoriesById
+);
+
+router.put(
+  "/update-categoryid/:id",
+  jwtMiddleware,
+  upload.array("images", 5),
+  categoryController.updateCategoriesById
+);
+
+router.delete(
+  "/delete-category/:id",
+  jwtMiddleware,
+  categoryController.deleteCategoriesById
+);
+
+router.get(
+  "/categoriescount",
+  jwtMiddleware,
+  categoryController.countCategories
+);
 // sub-category
 router.post('/add-subcategory',jwtMiddleware,upload.array('images',1),subCategoryController.postSubCategories);
 router.get('/get-subcategory', subCategoryController.getSubCategories);

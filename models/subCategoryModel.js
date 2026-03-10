@@ -1,33 +1,22 @@
+const mongoose = require("mongoose")
 
-// const mongoose = require('mongoose');
+const subCategorySchema = new mongoose.Schema({
 
-// // Subcategory Schema
-// const subcategoriesSchema = new mongoose.Schema({
-//     subcategoryname: { type: String, required: true }, 
-//     category: { type: mongoose.Schema.Types.ObjectId, ref: 'CategoriesData', required: true }, 
-//     maincategory: { type: mongoose.Schema.Types.ObjectId, ref: 'MainCategoriesData', required: true },   
-//     createdAt: { type: Date, default: Date.now } // Auto add created date
-// });
+name:{
+type:String,
+required:true
+},
 
-// // Subcategory Model
-// const SubcategoriesData = mongoose.model('SubcategoriesData', subcategoriesSchema);
-// module.exports = SubcategoriesData;
+category:{
+type:mongoose.Schema.Types.ObjectId,
+ref:"Category",
+required:true
+},
 
+image:{
+type:String
+}
 
-const mongoose = require('mongoose');
+},{timestamps:true})
 
-// Subcategory Schema
-const subcategoriesSchema = new mongoose.Schema({
-    subcategoryname: { type: String, required: true }, 
-    category: { type: mongoose.Schema.Types.ObjectId, ref: 'CategoriesData', required: true }, 
-    maincategory: { type: mongoose.Schema.Types.ObjectId, ref: 'MainCategoriesData', required: true },   
-    images: { type: [String], required: false }, // Add an array of strings to store image paths
-    createdAt: { type: Date, default: Date.now } // Auto add created date
-});
-
-// Subcategory Model
-const SubcategoriesData = mongoose.model('SubcategoriesData', subcategoriesSchema);
-module.exports = SubcategoriesData;
-
-
-
+module.exports = mongoose.model("SubCategory",subCategorySchema)
