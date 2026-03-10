@@ -1,17 +1,41 @@
+const express = require("express");
+const router = express.Router();
 
-const mongoose = require('mongoose');
+const Product = require("../models/productModel");
+const upload = require("../middleware/uploadCloudinary"); // your multer/cloudinary middleware
 
-// Category Schema
-const categoriesSchema = new mongoose.Schema({
-    name: { type: String, required: true }, // Category name
-    maincategoriesData: { type: mongoose.Schema.Types.ObjectId, ref: 'MaincategoriesData', required: true }, // Reference to MaincategoriesData
-    images: { type: [String], required: false },
-    createdAt: { type: Date, default: Date.now } // Auto add created date
+// Create Product
+router.post("/create", upload.single("image"), async (req, res) => {
+  try {
+    const { name, price, category, description, stock } = req.body;
+
+    if (!req.file) {
+      return res.status(400).json({ message: "Image is required" });
+    }
+
+    const product = new Product({
+      name,
+      price,
+      maincategory: category,
+      description,
+      totalStock: stock || 0,
+      coverImage: req.file.path, // Cloudinary URL
+      sizes: [],
+    });
+
+    await product.save();
+
+    return res.status(201).json({
+      message: "Product created",
+      product
+    });
+
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({
+      message: "Server error"
+    });
+  }
 });
 
-// Category Model
-const CategoriesData = mongoose.model('CategoriesData', categoriesSchema);
-module.exports = CategoriesData;
-
-
-
+module.exports = router;
