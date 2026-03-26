@@ -19,7 +19,7 @@ const orderController=require('../controller/orderController')
 const invoiceController=require('../controller/invoiceController')
 
 const upload = require('../config/multerconfig');
-
+app.use('/api', router);
 router.post('/admin-register',adminController.registerAdmin);
 
 // admin login
