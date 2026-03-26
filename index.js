@@ -33,7 +33,7 @@ app.use(express.urlencoded({ extended: true }));
 
 // ✅ ROUTES
 app.use('/api/upload', uploadRoutes); // 🔥 FIXED POSITION
-app.use(router);
+app.use('/api', router);
 
 // Default route
 app.get("/", (req, res) => {
