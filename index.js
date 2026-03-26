@@ -16,7 +16,14 @@ app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // CORS
 app.use(cors({
-  origin: ["*"],
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'https://looi.in',
+    'https://www.looi.in',
+    'https://admin.looi.in',
+    'https://looi-store-admin-beta.vercel.app/'
+  ],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true,
 }));
