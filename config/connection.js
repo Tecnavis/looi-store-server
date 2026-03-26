@@ -1,10 +1,13 @@
-require('dotenv').config();
-const mongoose=require('mongoose')
+const mongoose = require('mongoose');
 
-mongoose.connect( process.env.CONNECTION_STRING).then(result=>{
-    
-    console.log("MongoDB Atlas connected with Storeserver");
-}).catch(err=>{
-    console.log("connection failed");
-    console.log(err);
-})
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log("MongoDB Connected ✅");
+  } catch (err) {
+    console.error("MongoDB Error ❌:", err);
+    process.exit(1);
+  }
+};
+
+connectDB();
