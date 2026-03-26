@@ -1,38 +1,48 @@
-// index.js
 require('dotenv').config();
+
 const cors = require('cors');
-const express = require("express");
+const express = require('express');
+const path = require('path');
+
 const router = require('./Routes/route');
-var path=require('path')
-import uploadRoutes from "./Routes/uploadRoutes.js";
-app.use("/api/upload", uploadRoutes);
+const uploadRoutes = require('./Routes/uploadRoutes'); // ✅ FIXED
 
+require('./config/connection');
 
-require('./config/connection')
-const StoreServer = express();
-StoreServer.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-StoreServer.use(cors());
-StoreServer.use(cors({
-    origin: ['http://localhost:5173', 'https://looi.in',"https://admin.looi.in","http://localhost:5174","https://www.looi.in"],
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    credentials: true,
-  }));
-  
-StoreServer.use(express.json());
-StoreServer.use(express.urlencoded({ extended: true }));
+const app = express(); // ✅ FIXED
 
+// Static folder
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
-const PORT = process.env.PORT || 8000;
+// CORS
+app.use(cors({
+  origin: [
+    'http://localhost:5173',
+    'http://localhost:5174',
+    'https://looi.in',
+    'https://www.looi.in',
+    'https://admin.looi.in'
+  ],
+  methods: ['GET', 'POST', 'PUT', 'DELETE'],
+  credentials: true,
+}));
 
-// Routes
-StoreServer.use(router);
+// Middlewares
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
 
-// Start the server
-StoreServer.listen(PORT, () => {
-    console.log(`Project server started at port ${PORT}`);
-});
+// ✅ ROUTES
+app.use('/api/upload', uploadRoutes); // 🔥 FIXED POSITION
+app.use(router);
 
 // Default route
-StoreServer.get("/", (req, res) => {
-    res.status(200).send(`<h1>Project server started and waiting for client request</h1>`);
+app.get("/", (req, res) => {
+  res.status(200).send(`<h1>Server running successfully 🚀</h1>`);
+});
+
+// Start server
+const PORT = process.env.PORT || 8000;
+
+app.listen(PORT, () => {
+  console.log(`Server started at port ${PORT}`);
 });
