@@ -4,6 +4,8 @@ const cors = require('cors');
 const express = require("express");
 const router = require('./Routes/route');
 var path=require('path')
+import uploadRoutes from "./Routes/uploadRoutes.js";
+app.use("/api/upload", uploadRoutes);
 
 
 require('./config/connection')
