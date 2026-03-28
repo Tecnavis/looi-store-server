@@ -11,12 +11,12 @@ exports.order = async(req,res)=> {
         const options = req.body
         const order = await razorpay.orders.create(options);
         if(!order){
-            return res.status(500).send("Error")
+            return res.stats(500).send("Error")
         }
          res.json(order)
     } catch (error) {
         console.log(error)
-        res.status(500).send("Error")
+        res.stats(500).send("Error")
     }
 
 }
