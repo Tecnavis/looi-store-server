@@ -201,10 +201,11 @@ exports.createOrder = async (req, res) => {
             orderItems: enrichedOrderItems,
             shippingAddress,
             paymentMethod,
-            paymentStatus,
+            // For COD: Pending. For online: if paymentStatus sent as 'Paid' use it, else Pending (will be updated after Razorpay verify)
+            paymentStatus: paymentStatus || 'Pending',
             totalAmount,
-            razorpayOrderId,
-            razorpayPaymentId,
+            razorpayOrderId: razorpayOrderId || '',
+            razorpayPaymentId: razorpayPaymentId || '',
             email,
             orderStatus: 'Pending',
             orderDate: new Date()
@@ -332,7 +333,7 @@ exports.getAllOrders = async (req, res) => {
                 select: 'name email' 
             })
             .populate({
-                path: 'orderItems.product_id', 
+                path: 'orderItems.productId',  // fixed: was product_id
                 model: 'Product', 
                 select: 'name price coverImage' 
             })
@@ -367,7 +368,7 @@ exports.getOrderById = async (req, res) => {
                 select: 'name email' 
             })
             .populate({
-                path: 'orderItems.product_id', 
+                path: 'orderItems.productId',  // fixed: was product_id
                 model: 'Product',
                 select: 'name price coverImage' 
             });

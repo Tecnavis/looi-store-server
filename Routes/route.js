@@ -110,6 +110,7 @@ router.post('/order',jwtMiddleware,razorpayController.order);
 router.post('/verify-payment',jwtMiddleware,razorpayController.validate);
 
 router.post('/postOrder',jwtMiddleware,orderController.createOrder);
+router.post('/order-success',jwtMiddleware,orderController.orderSuccessHandler);
 router.get('/getOrders',orderController.getAllOrders);
 router.get('/getOrders/:orderId',jwtMiddleware,orderController.getOrderById);
 router.put('/update-order/:orderId',orderController.updateOrderById);
