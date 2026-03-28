@@ -142,60 +142,56 @@ exports.createOrder = async (req, res) => {
         // Validate and enrich order items with product details
         const enrichedOrderItems = [];
         for (let item of orderItems) {
-            // Validate required fields for each order item
-            if (!item.productName || !item.quantity || !item.price || !item.color || !item.size) {
+            // Validate only the truly required fields
+            if (!item.productName || !item.quantity || !item.price) {
                 return res.status(400).json({
                     success: false,
-                    message: `Missing required fields for item: ${JSON.stringify(item)}`
+                    message: `Missing required fields (productName, quantity, price) for item: ${item.productName || 'unknown'}`
                 });
             }
 
-            // Find the product by name and validate its existence
-            const product = await Product.findOne({ name: item.productName });
-            if (!product) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Product not found: ${item.productName}`
+            // Look up product by _id first (most reliable), then fall back to case-insensitive name
+            let product = null;
+            const lookupId = item.productId || item.product;
+            if (lookupId) {
+                try { product = await Product.findById(lookupId); } catch (e) { /* invalid id */ }
+            }
+            if (!product && item.productName) {
+                product = await Product.findOne({
+                    name: { $regex: new RegExp('^' + item.productName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') }
                 });
             }
 
-            // Validate size and color availability
-            const sizeObj = product.sizes.find(s => s.size === item.size);
-            if (!sizeObj) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Size ${item.size} not found for product ${item.productName}`
-                });
+            // Build enriched item — fall back to cart data if product not in DB
+            const enriched = {
+                productId:   product ? product._id : (lookupId || null),
+                productName: item.productName,
+                quantity:    item.quantity,
+                price:       item.price,
+                color:       item.color  || '',
+                size:        item.size   || '',
+                hsn:         item.hsn    || (product && product.hsn)    || '',
+                sku:         item.sku    || (product && product.sku)    || '',
+                length:      item.length || (product && product.length) || 0,
+                width:       item.width  || (product && product.width)  || 0,
+                height:      item.height || (product && product.height) || 0,
+                weight:      item.weight || (product && product.weight) || 0,
+                coverImage:  (product && product.coverImage) || '',
+            };
+
+            // Only check stock if we found the product and have size/color data
+            if (product && item.size && item.color) {
+                const sizeObj  = product.sizes && product.sizes.find(function(s) { return s.size === item.size; });
+                const colorObj = sizeObj && sizeObj.colors && sizeObj.colors.find(function(c) { return c.color === item.color; });
+                if (colorObj && colorObj.stock < item.quantity) {
+                    return res.status(400).json({
+                        success: false,
+                        message: 'Insufficient stock for ' + item.productName + ' (size: ' + item.size + ', color: ' + item.color + ')'
+                    });
+                }
             }
 
-            const colorObj = sizeObj.colors.find(c => c.color === item.color);
-            if (!colorObj) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Color ${item.color} not found for size ${item.size} in product ${item.productName}`
-                });
-            }
-
-            // Check stock availability
-            if (colorObj.stock < item.quantity) {
-                return res.status(400).json({
-                    success: false,
-                    message: `Insufficient stock for ${item.productName} in size ${item.size} and color ${item.color}`
-                });
-            }
-
-            // Enrich order item with product details
-            enrichedOrderItems.push({
-                ...item,
-                productId: product._id,
-                coverImage: product.coverImage,
-                hsn: product.hsn,
-                sku: product.sku,
-                length: product.length,
-                width: product.width,
-                height: product.height,
-                weight: product.weight
-            });
+            enrichedOrderItems.push(enriched);
         }
 
         // Create order data with enriched items
@@ -217,13 +213,21 @@ exports.createOrder = async (req, res) => {
         // ── STEP 1: Save order to DB first (always) ─────────────────────────
         const order = await Order.create(orderData);
 
-        // ── STEP 2: Deduct stock ─────────────────────────────────────────────
+        // ── STEP 2: Deduct stock (null-safe) ─────────────────────────────────
         for (let item of enrichedOrderItems) {
-            const product = await Product.findById(item.productId);
-            const size = product.sizes.find(s => s.size === item.size);
-            const color = size.colors.find(c => c.color === item.color);
-            color.stock -= item.quantity;
-            await product.save();
+            if (!item.productId || !item.size || !item.color) continue;
+            try {
+                const product = await Product.findById(item.productId);
+                if (!product) continue;
+                const sizeObj = product.sizes && product.sizes.find(function(s) { return s.size === item.size; });
+                if (!sizeObj) continue;
+                const colorObj = sizeObj.colors && sizeObj.colors.find(function(c) { return c.color === item.color; });
+                if (!colorObj) continue;
+                colorObj.stock = Math.max(0, colorObj.stock - item.quantity);
+                await product.save();
+            } catch (stockErr) {
+                console.error('Stock deduction error (non-fatal):', stockErr.message);
+            }
         }
 
         // ── STEP 3: Link order to user ───────────────────────────────────────
@@ -242,7 +246,7 @@ exports.createOrder = async (req, res) => {
         `).join('');
 
         sendEmail(
-            order.email,
+            order.email || email,
             'Order Confirmation',
             `Your order #${order.orderId} has been placed successfully.`,
             `
