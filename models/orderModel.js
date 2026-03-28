@@ -11,8 +11,8 @@ const orderSchema = new mongoose.Schema({
     },
     shiprocket_order_id: {
         type: String,
-        required: true,
-        unique: true,
+        required: false,
+        unique: false,
     },
     user: {
         type: mongoose.Schema.Types.ObjectId,
@@ -60,28 +60,34 @@ const orderSchema = new mongoose.Schema({
         },
         hsn:{
             type: String,
-            required: true
+            required: false,
+            default: ''
         },
         sku: {
             type: String,
-            required: true
+            required: false,
+            default: ''
         },
 
         length: {
             type: Number,
-            required: true
+            required: false,
+            default: 0
         },
         width: {
             type: Number,
-            required: true
+            required: false,
+            default: 0
         },
         height: {
             type: Number,
-            required: true
+            required: false,
+            default: 0
         },
         weight: {
             type: Number,
-            required: true
+            required: false,
+            default: 0
         },
 
     }],
@@ -137,8 +143,9 @@ const orderSchema = new mongoose.Schema({
     timestamps: true
 });
 
-// Middleware to increment order count in OrderCount model
+// Middleware to increment order count only when a NEW order is created
 orderSchema.pre('save', async function(next) {
+    if (!this.isNew) return next(); // ← Only count on first save, not updates
     try {
         await OrderCount.findOneAndUpdate(
             {},
