@@ -2,11 +2,9 @@ const User = require('../models/userModel');
 const Order = require('../models/orderModel');
 const Product = require('../models/productModel');
 const asyncHandler = require('express-async-handler');
-const { updateStock } = require('../services/stockService');
 const OrderCount = require('../models/orderCountModel');
-const sendEmail=require('../utils/emailService');
-const { postOrderToShiprocket } = require('../utils/shiprocketService');
-const { cancelOrderInShiprocket } = require('../utils/shiprocketService');
+const sendEmail = require('../utils/emailService');
+const { postOrderToShiprocket, cancelOrderInShiprocket } = require('../utils/shiprocketService');
 
 const generateOrderId = () => {
     return `ORD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`; // Generates an ID like "ORD-ABCD12345"
@@ -129,7 +127,8 @@ exports.createOrder = async (req, res) => {
             totalAmount,
             razorpayOrderId,
             razorpayPaymentId,
-            email
+            email,
+            skipShipping   // client can pass true to bypass courier API
         } = req.body;
 
         // Validate required fields
@@ -215,69 +214,68 @@ exports.createOrder = async (req, res) => {
             orderDate: new Date()
         };
 
-        // Create order in Shiprocket
-        try {
-            const shiprocketResponse = await postOrderToShiprocket(orderData);
-            if (!shiprocketResponse || !shiprocketResponse.order_id) {
-                throw new Error('Failed to get Shiprocket order ID');
-            }
-            orderData.shiprocket_order_id = shiprocketResponse.order_id;
+        // ── STEP 1: Save order to DB first (always) ─────────────────────────
+        const order = await Order.create(orderData);
 
-            // Create order in database
-            const order = await Order.create(orderData);
-
-            // Update stock for each product
-            for (let item of enrichedOrderItems) {
-                const product = await Product.findById(item.productId);
-                const size = product.sizes.find(s => s.size === item.size);
-                const color = size.colors.find(c => c.color === item.color);
-                color.stock -= item.quantity;
-                await product.save();
-            }
-
-            // Send confirmation email
-            const orderItemsHtml = enrichedOrderItems.map(item => `
-                <li>
-                    <strong>${item.productName}</strong> - ${item.quantity} x ₹${item.price} = ₹${item.quantity * item.price}
-                    <br>Size: ${item.size}, Color: ${item.color}
-                </li>
-            `).join('');
-
-            await sendEmail(
-                order.email,
-                'Order Confirmation',
-                `Your order #${order.orderId} has been placed successfully.`,
-                `
-                    <p>Thank you for your order! Your order ID is <strong>${order.orderId}</strong>.</p>
-                    <p><strong>Order Details:</strong></p>
-                    <ul>${orderItemsHtml}</ul>
-                    <p><strong>Total Amount:</strong> ₹${order.totalAmount}</p>
-                    <p>We will notify you when your order is shipped.</p>
-                `
-            );
-
-            // Update user's orders
-            await User.findByIdAndUpdate(
-                user,
-                { $push: { orders: order._id } },
-                { new: true }
-            );
-
-            return res.status(200).json({
-                success: true,
-                message: 'Order created successfully',
-                order,
-                shiprocketResponse
-            });
-
-        } catch (shiprocketError) {
-            console.error('Shiprocket Error:', shiprocketError);
-            return res.status(500).json({
-                success: false,
-                message: 'Failed to create shipping order',
-                error: shiprocketError.message
-            });
+        // ── STEP 2: Deduct stock ─────────────────────────────────────────────
+        for (let item of enrichedOrderItems) {
+            const product = await Product.findById(item.productId);
+            const size = product.sizes.find(s => s.size === item.size);
+            const color = size.colors.find(c => c.color === item.color);
+            color.stock -= item.quantity;
+            await product.save();
         }
+
+        // ── STEP 3: Link order to user ───────────────────────────────────────
+        await User.findByIdAndUpdate(
+            user,
+            { $push: { orders: order._id } },
+            { new: true }
+        );
+
+        // ── STEP 4: Send confirmation email (non-blocking) ───────────────────
+        const orderItemsHtml = enrichedOrderItems.map(item => `
+            <li>
+                <strong>${item.productName}</strong> - ${item.quantity} x ₹${item.price} = ₹${item.quantity * item.price}
+                <br>Size: ${item.size}, Color: ${item.color}
+            </li>
+        `).join('');
+
+        sendEmail(
+            order.email,
+            'Order Confirmation',
+            `Your order #${order.orderId} has been placed successfully.`,
+            `
+                <p>Thank you for your order! Your order ID is <strong>${order.orderId}</strong>.</p>
+                <p><strong>Order Details:</strong></p>
+                <ul>${orderItemsHtml}</ul>
+                <p><strong>Total Amount:</strong> ₹${order.totalAmount}</p>
+                <p>We will notify you when your order is shipped.</p>
+            `
+        ).catch(emailErr => console.error('Email send failed (non-fatal):', emailErr.message));
+
+        // ── STEP 5: Attempt Shiprocket (non-fatal, skippable) ────────────────
+        if (!skipShipping) {
+            try {
+                const shiprocketResponse = await postOrderToShiprocket({
+                    ...orderData,
+                    _id: order._id   // pass DB id so shiprocketService can update shipment details
+                });
+                if (shiprocketResponse && shiprocketResponse.order_id) {
+                    order.shiprocket_order_id = shiprocketResponse.order_id;
+                    await order.save();
+                }
+            } catch (shiprocketError) {
+                // Log but do NOT fail the order — it is already saved in DB
+                console.error('Shiprocket Error (non-fatal):', shiprocketError.message);
+            }
+        }
+
+        return res.status(200).json({
+            success: true,
+            message: 'Order created successfully',
+            order
+        });
 
     } catch (error) {
         console.error('Error creating order:', error);
@@ -296,12 +294,23 @@ exports.orderSuccessHandler = asyncHandler(async (req, res) => {
     const order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ message: 'Order not found' });
 
-    // Update order status to success and update stock
     order.orderStatus = 'Success';
     await order.save();
 
-    // Update stock
-    await updateStock(order);
+    // Inline stock update (no external service needed)
+    for (const item of order.orderItems) {
+        const product = await Product.findById(item.productId);
+        if (product) {
+            const sizeObj = product.sizes.find(s => s.size === item.size);
+            if (sizeObj) {
+                const colorObj = sizeObj.colors.find(c => c.color === item.color);
+                if (colorObj && colorObj.stock >= item.quantity) {
+                    colorObj.stock -= item.quantity;
+                    await product.save();
+                }
+            }
+        }
+    }
 
     res.status(200).json({
         success: true,

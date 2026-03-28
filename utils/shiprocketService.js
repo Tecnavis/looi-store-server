@@ -75,17 +75,22 @@ const postOrderToShiprocket = async (orderData) => {
                 }
             }
         );
-        // Save `shipment_id` and `awb_code` in the database
-        const { shipment_id, awb_code } = response.data;
-
-        await Order.findByIdAndUpdate(orderData._id, {
-
-            shipmentId: shipment_id,
-            awbCode: awb_code
-        });
 
         console.log('Shiprocket Order Created:', response.data);
-        await generateAWB(shipment_id);
+
+        // Save shipment_id and awb_code only if we have a valid DB order _id
+        const { shipment_id, awb_code } = response.data;
+        if (orderData._id && (shipment_id || awb_code)) {
+            await Order.findByIdAndUpdate(orderData._id, {
+                shipmentId: shipment_id,
+                awbCode: awb_code
+            });
+        }
+
+        if (shipment_id) {
+            await generateAWB(shipment_id);
+        }
+
         return response.data;
     } catch (error) {
         console.error('Error posting order to Shiprocket:', error.message);
