@@ -21,7 +21,8 @@ const orderSchema = new mongoose.Schema({
     },
     email: {
         type: String,
-        required: true
+        required: false,
+        default: ''
     },
     orderItems: [{
       
@@ -42,14 +43,10 @@ const orderSchema = new mongoose.Schema({
             type: String,
             required: false
         },
-        product_id: {
+        productId: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'Product'
         },
-        // productId: {
-        //      type: mongoose.Schema.Types.ObjectId,
-        //     ref: 'Product'
-        // },
         productName: {
             type: String,
             required: true

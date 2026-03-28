@@ -436,7 +436,7 @@ exports.getOrdersByUser = async (req, res) => {
 
         const orders = await Order.find({ user: userId })
             .populate({
-                path: 'orderItems.product_id',
+                path: 'orderItems.productId',
                 model: 'Product',
                 select: 'name price coverImage'
             })
