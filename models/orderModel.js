@@ -7,6 +7,7 @@ const orderSchema = new mongoose.Schema({
         type: String,
         required: true,
         unique: true,
+        sparse: true,
         default: uuidv4, // Automatically generate a UUID
     },
     shiprocket_order_id: {

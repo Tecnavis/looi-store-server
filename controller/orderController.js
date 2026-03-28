@@ -204,8 +204,8 @@ exports.createOrder = async (req, res) => {
             // For COD: Pending. For online: if paymentStatus sent as 'Paid' use it, else Pending (will be updated after Razorpay verify)
             paymentStatus: paymentStatus || 'Pending',
             totalAmount,
-            razorpayOrderId: razorpayOrderId || '',
-            razorpayPaymentId: razorpayPaymentId || '',
+            razorpayOrderId: razorpayOrderId || undefined,
+            razorpayPaymentId: razorpayPaymentId || undefined,
             email,
             orderStatus: 'Pending',
             orderDate: new Date()
@@ -284,6 +284,16 @@ exports.createOrder = async (req, res) => {
 
     } catch (error) {
         console.error('Error creating order:', error);
+        // Log full validation errors for debugging
+        if (error.name === 'ValidationError') {
+            const fields = Object.keys(error.errors).join(', ');
+            console.error('Mongoose ValidationError fields:', fields);
+            return res.status(500).json({
+                success: false,
+                message: 'Order validation failed: ' + fields,
+                error: error.message
+            });
+        }
         return res.status(500).json({
             success: false,
             message: 'Failed to create order',
