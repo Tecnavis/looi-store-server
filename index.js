@@ -2,33 +2,28 @@ require('dotenv').config();
 
 const cors = require('cors');
 const express = require('express');
-const path = require('path');
 
 const router = require('./Routes/route');
-const uploadRoutes = require('./Routes/uploadRoutes'); // ✅ FIXED
+const uploadRoutes = require('./Routes/uploadRoutes');
 
 require('./config/connection');
 
-const app = express(); // ✅ FIXED
-
-// Static folder
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+const app = express();
 
 // CORS
-
 app.use(cors());
 
 // Middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
-// ✅ ROUTES
-app.use('/api/upload', uploadRoutes); // 🔥 FIXED POSITION
+// Routes
+app.use('/api/upload', uploadRoutes);
 app.use('/api', router);
 
 // Default route
-app.get("/", (req, res) => {
-  res.status(200).send(`<h1>Server running successfully 🚀</h1>`);
+app.get('/', (req, res) => {
+  res.status(200).send('<h1>Server running successfully 🚀</h1>');
 });
 
 // Start server
