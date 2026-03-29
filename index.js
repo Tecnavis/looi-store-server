@@ -1,20 +1,20 @@
 require('dotenv').config();
 
-const cors = require('cors');
+const cors    = require('cors');
 const express = require('express');
 
-const router = require('./Routes/route');
+const router      = require('./Routes/route');
 const uploadRoutes = require('./Routes/uploadRoutes');
 
 require('./config/connection');
 
 const app = express();
 
-// CORS - allow requests from the frontend domains
+// CORS
 app.use(cors({
   origin: [
     'https://looi.in',
-    'https://www.looi.in', 
+    'https://www.looi.in',
     'https://admin.looi.in',
     'http://localhost:3000',
     'http://localhost:5173',
@@ -24,22 +24,30 @@ app.use(cors({
   allowedHeaders: ['Content-Type', 'Authorization'],
 }));
 
-// Middlewares
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+// ── Drop stale MongoDB indexes on startup (fixes E11000 shiprocket_order_id null) ──
+const Order = require('./models/orderModel');
+setTimeout(async () => {
+  try {
+    await Order.dropBadIndexes();
+    console.log('[startup] Index cleanup complete');
+  } catch (e) {
+    console.error('[startup] Index cleanup error (non-fatal):', e.message);
+  }
+}, 3000); // wait 3s for DB connection to establish
 
 // Routes
 app.use('/api/upload', uploadRoutes);
 app.use('/api', router);
 
-// Default route
+// Health check
 app.get('/', (req, res) => {
-  res.status(200).send('<h1>Server running successfully 🚀</h1>');
+  res.status(200).send('<h1>Server running 🚀</h1>');
 });
 
-// Start server
 const PORT = process.env.PORT || 8000;
-
 app.listen(PORT, () => {
   console.log(`Server started at port ${PORT}`);
 });
