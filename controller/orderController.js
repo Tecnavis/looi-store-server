@@ -6,11 +6,21 @@ const OrderCount = require('../models/orderCountModel');
 const sendEmail = require('../utils/emailService');
 const { postOrderToShiprocket, cancelOrderInShiprocket } = require('../utils/shiprocketService');
 
-const generateOrderId = () => {
-    return `ORD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
-};
+const generateOrderId = () => `ORD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
 exports.createOrder = async (req, res) => {
+    // ── DEBUG: log exactly what arrived ─────────────────────────────────────
+    console.log('=== /postOrder called ===');
+    console.log('BODY keys:', Object.keys(req.body || {}));
+    console.log('user:', req.body?.user);
+    console.log('totalAmount:', req.body?.totalAmount, '| type:', typeof req.body?.totalAmount);
+    console.log('paymentMethod:', req.body?.paymentMethod);
+    console.log('orderItems count:', Array.isArray(req.body?.orderItems) ? req.body.orderItems.length : 'NOT ARRAY');
+    if (Array.isArray(req.body?.orderItems) && req.body.orderItems[0]) {
+        const first = req.body.orderItems[0];
+        console.log('first item:', JSON.stringify({ productName: first.productName, quantity: first.quantity, price: first.price }));
+    }
+
     try {
         const {
             user, orderItems, shippingAddress, paymentMethod,
@@ -18,133 +28,149 @@ exports.createOrder = async (req, res) => {
             razorpayPaymentId, email, skipShipping
         } = req.body;
 
-        if (!user || !orderItems || !shippingAddress || !paymentMethod || !totalAmount) {
-            return res.status(400).json({
-                success: false,
-                message: 'Missing required fields: user, orderItems, shippingAddress, paymentMethod, totalAmount'
-            });
+        // ── Validate required fields ─────────────────────────────────────────
+        const missing = [];
+        if (!user)            missing.push('user');
+        if (!orderItems)      missing.push('orderItems');
+        if (!shippingAddress) missing.push('shippingAddress');
+        if (!paymentMethod)   missing.push('paymentMethod');
+        if (!totalAmount)     missing.push('totalAmount');
+
+        if (missing.length > 0) {
+            console.log('MISSING FIELDS:', missing);
+            return res.status(400).json({ success: false, message: `Missing required fields: ${missing.join(', ')}` });
         }
         if (!Array.isArray(orderItems) || orderItems.length === 0) {
             return res.status(400).json({ success: false, message: 'orderItems must be a non-empty array' });
         }
 
+        // ── Enrich order items ────────────────────────────────────────────────
         const enrichedOrderItems = [];
         for (let item of orderItems) {
             if (!item.productName || !item.quantity || !item.price) {
+                console.log('BAD ITEM:', JSON.stringify(item));
                 return res.status(400).json({
                     success: false,
-                    message: `Each item needs productName, quantity, price. Failed on: ${item.productName || 'unknown'}`
+                    message: `Item missing productName/quantity/price: ${item.productName || 'unknown'}`
                 });
             }
+
             let product = null;
             const lookupId = item.productId || item.product;
             if (lookupId) {
-                try { product = await Product.findById(lookupId); } catch (e) {}
+                try { product = await Product.findById(lookupId); } catch (e) { /* ignore bad id */ }
             }
             if (!product && item.productName) {
-                product = await Product.findOne({
-                    name: { $regex: new RegExp('^' + item.productName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') }
-                });
+                try {
+                    product = await Product.findOne({
+                        name: { $regex: new RegExp('^' + item.productName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') }
+                    });
+                } catch (e) { /* ignore */ }
             }
-            const enriched = {
+
+            enrichedOrderItems.push({
                 productId:   product ? product._id : (lookupId || null),
                 productName: item.productName,
-                quantity:    item.quantity,
-                price:       item.price,
+                quantity:    Number(item.quantity),
+                price:       Number(item.price),
                 color:       item.color   || '',
                 size:        item.size    || '',
-                hsn:         item.hsn     || (product && product.hsn)    || '',
-                sku:         item.sku     || (product && product.sku)    || '',
-                length:      item.length  || (product && product.length) || 0,
-                width:       item.width   || (product && product.width)  || 0,
-                height:      item.height  || (product && product.height) || 0,
-                weight:      item.weight  || (product && product.weight) || 0,
-                coverImage:  (product && product.coverImage) || '',
-            };
-            if (product && item.size && item.color) {
-                const sizeObj  = product.sizes && product.sizes.find(s => s.size === item.size);
-                const colorObj = sizeObj && sizeObj.colors && sizeObj.colors.find(c => c.color === item.color);
-                if (colorObj && colorObj.stock < item.quantity) {
-                    return res.status(400).json({
-                        success: false,
-                        message: `Insufficient stock for ${item.productName} (size: ${item.size}, color: ${item.color})`
-                    });
-                }
-            }
-            enrichedOrderItems.push(enriched);
+                hsn:         item.hsn     || (product?.hsn)    || '',
+                sku:         item.sku     || (product?.sku)    || '',
+                length:      item.length  || (product?.length) || 0,
+                width:       item.width   || (product?.width)  || 0,
+                height:      item.height  || (product?.height) || 0,
+                weight:      item.weight  || (product?.weight) || 0,
+                coverImage:  product?.coverImage || '',
+            });
         }
 
+        // ── Build order ───────────────────────────────────────────────────────
         const orderData = {
-            orderId: generateOrderId(),
-            user, orderItems: enrichedOrderItems, shippingAddress, paymentMethod,
-            paymentStatus: paymentStatus || 'Pending', totalAmount,
-            razorpayOrderId: razorpayOrderId || undefined,
+            orderId:          generateOrderId(),
+            user,
+            orderItems:       enrichedOrderItems,
+            shippingAddress,
+            paymentMethod,
+            paymentStatus:    paymentStatus || 'Pending',
+            totalAmount:      Number(totalAmount),
+            razorpayOrderId:  razorpayOrderId  || undefined,
             razorpayPaymentId: razorpayPaymentId || undefined,
-            email: email || '',
-            orderStatus: 'Pending', orderDate: new Date()
+            email:            email || '',
+            orderStatus:      'Pending',
+            orderDate:        new Date()
         };
 
-        // STEP 1: Save to DB — if this fails, return 500. Everything else is non-fatal.
-        const order = await Order.create(orderData);
+        console.log('Saving order with orderId:', orderData.orderId, '| amount:', orderData.totalAmount);
 
-        // STEP 2: Deduct stock (non-fatal)
+        // ── STEP 1: Save to DB ────────────────────────────────────────────────
+        const order = await Order.create(orderData);
+        console.log('Order saved! _id:', order._id);
+
+        // ── STEP 2: Deduct stock (non-fatal) ──────────────────────────────────
         for (let item of enrichedOrderItems) {
             if (!item.productId || !item.size || !item.color) continue;
             try {
                 const product = await Product.findById(item.productId);
                 if (!product) continue;
-                const sizeObj  = product.sizes && product.sizes.find(s => s.size === item.size);
-                if (!sizeObj) continue;
-                const colorObj = sizeObj.colors && sizeObj.colors.find(c => c.color === item.color);
-                if (!colorObj) continue;
-                colorObj.stock = Math.max(0, colorObj.stock - item.quantity);
-                await product.save();
+                const sizeObj  = product.sizes?.find(s => s.size === item.size);
+                const colorObj = sizeObj?.colors?.find(c => c.color === item.color);
+                if (colorObj) {
+                    colorObj.stock = Math.max(0, colorObj.stock - item.quantity);
+                    await product.save();
+                }
             } catch (e) { console.error('Stock error (non-fatal):', e.message); }
         }
 
-        // STEP 3: Link order to user (non-fatal)
+        // ── STEP 3: Link to user (non-fatal) ─────────────────────────────────
         try {
             await User.findByIdAndUpdate(user, { $push: { orders: order._id } }, { new: true });
         } catch (e) { console.error('User link error (non-fatal):', e.message); }
 
-        // STEP 4: Send email (non-fatal — ONLY if valid email exists)
+        // ── STEP 4: Send email (non-fatal — only if valid email) ─────────────
         const recipientEmail = email || order.email;
         if (recipientEmail && typeof recipientEmail === 'string' && recipientEmail.includes('@')) {
-            const orderItemsHtml = enrichedOrderItems.map(item =>
-                `<li><strong>${item.productName}</strong> — ${item.quantity} x Rs.${item.price} = Rs.${item.quantity * item.price}<br>Size: ${item.size || 'N/A'}, Color: ${item.color || 'N/A'}</li>`
+            const html = enrichedOrderItems.map(item =>
+                `<li>${item.productName} × ${item.quantity} — ₹${item.price * item.quantity} (${item.size || ''} ${item.color || ''})</li>`
             ).join('');
             sendEmail(
                 recipientEmail,
                 'Order Confirmation — LOOI Store',
-                `Your order #${order.orderId} has been placed.`,
-                `<p>Thank you! Order ID: <strong>${order.orderId}</strong></p><ul>${orderItemsHtml}</ul><p>Total: Rs.${order.totalAmount}</p>`
+                `Order #${order.orderId} placed successfully.`,
+                `<p>Thank you! Order ID: <strong>${order.orderId}</strong></p><ul>${html}</ul><p>Total: ₹${order.totalAmount}</p>`
             ).catch(e => console.error('Email error (non-fatal):', e.message));
-        } else {
-            console.warn('No valid email — skipping confirmation email');
         }
 
-        // STEP 5: Shiprocket (non-fatal — NEVER throws, always caught)
+        // ── STEP 5: Shiprocket (non-fatal — NEVER blocks order response) ──────
         if (!skipShipping) {
-            try {
-                const shiprocketResponse = await postOrderToShiprocket({ ...orderData, _id: order._id });
-                if (shiprocketResponse && shiprocketResponse.order_id) {
-                    order.shiprocket_order_id = shiprocketResponse.order_id;
-                    await order.save();
+            // Run in background — do NOT await in main flow
+            setImmediate(async () => {
+                try {
+                    const sr = await postOrderToShiprocket({ ...orderData, _id: order._id });
+                    if (sr?.order_id) {
+                        await Order.findByIdAndUpdate(order._id, { shiprocket_order_id: sr.order_id });
+                        console.log('Shiprocket order_id saved:', sr.order_id);
+                    }
+                } catch (e) {
+                    console.error('Shiprocket background error (order already saved):', e.message);
                 }
-            } catch (shiprocketError) {
-                console.error('Shiprocket error (non-fatal — order already saved):', shiprocketError.message);
-            }
+            });
         }
 
+        // ── Always return 200 once order is in DB ─────────────────────────────
+        console.log('Returning success for order:', order._id);
         return res.status(200).json({ success: true, message: 'Order created successfully', order });
 
     } catch (error) {
-        console.error('Error creating order:', error);
+        console.error('=== createOrder FATAL ERROR ===');
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
         if (error.name === 'ValidationError') {
-            const fields = Object.keys(error.errors).join(', ');
-            return res.status(500).json({ success: false, message: 'Validation failed: ' + fields, error: error.message });
+            const fields = Object.keys(error.errors).map(f => `${f}: ${error.errors[f].message}`).join('; ');
+            console.error('Validation fields:', fields);
+            return res.status(500).json({ success: false, message: 'Validation failed — ' + fields, error: error.message });
         }
-        return res.status(500).json({ success: false, message: 'Failed to create order', error: error.message });
+        return res.status(500).json({ success: false, message: 'Failed to create order: ' + error.message, error: error.message });
     }
 };
 
@@ -152,23 +178,8 @@ exports.orderSuccessHandler = asyncHandler(async (req, res) => {
     const { orderId } = req.body;
     const order = await Order.findById(orderId);
     if (!order) return res.status(404).json({ message: 'Order not found' });
-    order.orderStatus = 'Success';
+    order.orderStatus = 'Processing';
     await order.save();
-    for (const item of order.orderItems) {
-        try {
-            const product = await Product.findById(item.productId);
-            if (product) {
-                const sizeObj  = product.sizes.find(s => s.size === item.size);
-                if (sizeObj) {
-                    const colorObj = sizeObj.colors.find(c => c.color === item.color);
-                    if (colorObj && colorObj.stock >= item.quantity) {
-                        colorObj.stock -= item.quantity;
-                        await product.save();
-                    }
-                }
-            }
-        } catch (e) { console.error('Stock update error:', e.message); }
-    }
     res.status(200).json({ success: true, message: 'Order processed successfully' });
 });
 
@@ -225,8 +236,8 @@ exports.getOrdersByUser = async (req, res) => {
 
 exports.getTotalOrderCount = async (req, res) => {
     try {
-        const orderCountDoc = await OrderCount.findOne();
-        res.status(200).json({ totalOrderCount: orderCountDoc ? orderCountDoc.count : 0 });
+        const doc = await OrderCount.findOne();
+        res.status(200).json({ totalOrderCount: doc ? doc.count : 0 });
     } catch (error) {
         res.status(500).json({ error: error.message });
     }
@@ -250,20 +261,20 @@ exports.cancelOrder = async (req, res) => {
         const order = await Order.findById(orderId);
         if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
         if (order.orderStatus === 'Cancelled') return res.status(400).json({ success: false, message: 'Already cancelled' });
-        if (order.orderStatus === 'Shipped') return res.status(400).json({ success: false, message: 'Cannot cancel shipped order' });
+        if (order.orderStatus === 'Shipped')   return res.status(400).json({ success: false, message: 'Cannot cancel shipped order' });
 
         try {
-            const shiprocketResponse = await cancelOrderInShiprocket({ orderId: order.orderId, shiprocket_order_id: order.shiprocket_order_id });
-            Object.assign(order, { orderStatus: 'Cancelled', cancellationDate: new Date(), cancellationReason: req.body.reason || 'Customer requested', shiprocketCancellationResponse: shiprocketResponse });
-        } catch (e) {
-            console.error('Shiprocket cancel failed (non-fatal):', e.message);
-            Object.assign(order, { orderStatus: 'Cancelled', cancellationDate: new Date(), cancellationNotes: 'Shiprocket cancellation may need manual action' });
-        }
+            await cancelOrderInShiprocket({ orderId: order.orderId, shiprocket_order_id: order.shiprocket_order_id });
+        } catch (e) { console.error('Shiprocket cancel failed (non-fatal):', e.message); }
+
+        order.orderStatus = 'Cancelled';
+        order.cancellationDate = new Date();
+        order.cancellationReason = req.body.reason || 'Customer requested';
         await order.save();
 
-        if (order.email && order.email.includes('@')) {
-            sendEmail(order.email, 'Order Cancelled — LOOI Store', `Order #${order.orderId} cancelled.`,
-                `<p>Your order <strong>#${order.orderId}</strong> has been cancelled.</p>`
+        if (order.email?.includes('@')) {
+            sendEmail(order.email, 'Order Cancelled — LOOI', `Order #${order.orderId} cancelled.`,
+                `<p>Order <strong>#${order.orderId}</strong> has been cancelled.</p>`
             ).catch(e => console.error('Cancel email error:', e.message));
         }
         return res.status(200).json({ success: true, message: 'Order cancelled', order });
@@ -281,9 +292,9 @@ exports.markOrderAsDelivered = async (req, res) => {
         order.orderStatus = 'Delivered';
         order.deliveryDate = new Date();
         await order.save();
-        if (order.email && order.email.includes('@')) {
-            sendEmail(order.email, 'Order Delivered — LOOI Store', `Order #${order.orderId} delivered.`,
-                `<p>Your order <strong>#${order.orderId}</strong> has been delivered! Total: Rs.${order.totalAmount}</p>`
+        if (order.email?.includes('@')) {
+            sendEmail(order.email, 'Order Delivered — LOOI', `Order #${order.orderId} delivered.`,
+                `<p>Order <strong>#${order.orderId}</strong> delivered! Total: ₹${order.totalAmount}</p>`
             ).catch(e => console.error('Delivery email error:', e.message));
         }
         return res.status(200).json({ success: true, message: 'Order marked as delivered', order });
