@@ -3,26 +3,46 @@ require("dotenv").config()
 const crypto = require("crypto")
 const Order = require('../models/orderModel');
 
+// FIX: Validate amount properly — frontend must send amount in PAISE (multiply ₹ by 100)
 exports.order = async(req,res)=> {
     try {
         const razorpay = new Razorpay ({
             key_id: process.env.RAZORPAY_KEY_ID,
             key_secret: process.env.RAZORPAY_SECRET_KEY,
         });
-        const options = req.body
+
+        const { amount, currency, receipt } = req.body;
+
+        // Validate required fields
+        if (!amount || isNaN(amount) || amount <= 0) {
+            return res.status(400).json({ success: false, message: 'Invalid or missing amount. Send amount in paise (₹ × 100).' });
+        }
+
+        const options = {
+            amount: Math.round(amount), // Must be integer paise
+            currency: currency || 'INR',
+            receipt: receipt || `receipt_${Date.now()}`,
+        };
+
+        console.log('[Razorpay] Creating order:', options);
         const order = await razorpay.orders.create(options);
         if(!order){
-            return res.status(500).send("Error")
+            return res.status(500).json({ success: false, message: 'Failed to create Razorpay order' });
         }
-         res.json(order)
+        console.log('[Razorpay] Order created:', order.id);
+        res.json(order);
     } catch (error) {
-        console.log(error)
-        res.status(500).send("Error")
+        console.error('[Razorpay] Order creation error:', error);
+        res.status(500).json({ success: false, message: error.error?.description || error.message || 'Razorpay error' });
     }
 }
 
 exports.validate = async(req, res) => {
     const { razorpay_signature, razorpay_order_id, razorpay_payment_id, dbOrderId } = req.body;
+
+    if (!razorpay_signature || !razorpay_order_id || !razorpay_payment_id) {
+        return res.status(400).json({ success: false, msg: "Missing payment verification fields" });
+    }
 
     const sha = crypto.createHmac('sha256', process.env.RAZORPAY_SECRET_KEY);
     sha.update(`${razorpay_order_id}|${razorpay_payment_id}`);
@@ -32,8 +52,7 @@ exports.validate = async(req, res) => {
         return res.status(400).json({ success: false, msg: "Transaction is not legit" });
     }
 
-    // Payment is verified — update the order in DB to Paid + Processing
-    // Frontend must pass dbOrderId (MongoDB _id of the order created via /postOrder)
+    // Payment verified — update order in DB
     if (dbOrderId) {
         try {
             await Order.findByIdAndUpdate(dbOrderId, {
@@ -44,10 +63,8 @@ exports.validate = async(req, res) => {
             });
         } catch (err) {
             console.error('Failed to update order payment status:', err.message);
-            // Non-fatal: still return success so frontend flow completes
         }
     } else {
-        // Fallback: try to find order by razorpayOrderId
         try {
             await Order.findOneAndUpdate(
                 { razorpayOrderId: razorpay_order_id },
