@@ -10,18 +10,28 @@ passport.use(new GoogleStrategy({
   callbackURL: "https://looi-store-server-izvs.onrender.com/api/auth/google/callback",
 }, async (accessToken, refreshToken, profile, done) => {
   try {
-    let user = await User.findOne({ email: profile.emails[0].value });
+    console.log("PROFILE:", profile);
+
+    const email = profile.emails?.[0]?.value;
+
+    if (!email) {
+      return done(new Error("No email from Google"), null);
+    }
+
+    let user = await User.findOne({ email });
 
     if (!user) {
       user = await User.create({
         name: profile.displayName,
-        email: profile.emails[0].value,
-        password: "google_auth", // dummy
+        email,
+        password: "google_auth",
       });
     }
 
     return done(null, user);
+
   } catch (err) {
+    console.log("GOOGLE ERROR:", err);
     return done(err, null);
   }
 }));
