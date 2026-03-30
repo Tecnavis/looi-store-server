@@ -19,16 +19,16 @@ router.get("/google/callback",
 );
 
 // FACEBOOK LOGIN
-router.get("/facebook",
-  passport.authenticate("facebook", { scope: ["email"] })
-);
+// router.get("/facebook",
+//   passport.authenticate("facebook", { scope: ["email"] })
+// );
 
 // FACEBOOK CALLBACK
-router.get("/facebook/callback",
-  passport.authenticate("facebook", { failureRedirect: "/login" }),
-  (req, res) => {
-    res.redirect(`https://looi.in/login-success?user=${req.user._id}`);
-  }
-);
-console.log("✅ Auth routes loaded");
+// router.get("/facebook/callback",
+//   passport.authenticate("facebook", { failureRedirect: "/login" }),
+//   (req, res) => {
+//     res.redirect(`https://looi.in/login-success?user=${req.user._id}`);
+//   }
+// );
+// console.log("✅ Auth routes loaded");
 module.exports = router;
