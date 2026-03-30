@@ -30,5 +30,5 @@ router.get("/facebook/callback",
     res.redirect(`https://looi.in/login-success?user=${req.user._id}`);
   }
 );
-
+console.log("✅ Auth routes loaded");
 module.exports = router;
