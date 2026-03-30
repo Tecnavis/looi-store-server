@@ -16,15 +16,7 @@ require('./config/connection');
 const app = express();
 
 
-app.use(session({
-  secret: "secret",
-  resave: false,
-  saveUninitialized: true,
-}));
 
-app.use(passport.initialize());
-app.use(passport.session());
-app.use("/api/auth", authRoutes);
 
 // CORS
 app.use(cors({
@@ -42,6 +34,16 @@ app.use(cors({
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use(session({
+  secret: "secret",
+  resave: false,
+  saveUninitialized: true,
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+app.use("/api/auth", authRoutes);
 
 // ── Drop stale MongoDB indexes on startup (fixes E11000 shiprocket_order_id null) ──
 const Order = require('./models/orderModel');
