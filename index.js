@@ -1,5 +1,10 @@
 require('dotenv').config();
 
+const authRoutes = require("./Routes/authRoutes");
+const session = require("express-session");
+const passport = require("./config/passport");
+
+
 const cors    = require('cors');
 const express = require('express');
 
@@ -9,6 +14,17 @@ const uploadRoutes = require('./Routes/uploadRoutes');
 require('./config/connection');
 
 const app = express();
+
+
+app.use(session({
+  secret: "secret",
+  resave: false,
+  saveUninitialized: true,
+}));
+
+app.use(passport.initialize());
+app.use(passport.session());
+app.use("/api/auth", authRoutes);
 
 // CORS
 app.use(cors({
@@ -51,3 +67,5 @@ const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
   console.log(`Server started at port ${PORT}`);
 });
+
+
