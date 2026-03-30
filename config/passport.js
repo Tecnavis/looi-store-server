@@ -26,30 +26,30 @@ passport.use(new GoogleStrategy({
   }
 }));
 
-// FACEBOOK
-passport.use(new FacebookStrategy({
-  clientID: process.env.FACEBOOK_APP_ID,
-  clientSecret: process.env.FACEBOOK_APP_SECRET,
-  callbackURL: "/api/auth/facebook/callback",
-  profileFields: ["id", "displayName", "emails"]
-}, async (accessToken, refreshToken, profile, done) => {
-  try {
-    let email = profile.emails?.[0]?.value;
+// // FACEBOOK
+// passport.use(new FacebookStrategy({
+//   clientID: process.env.FACEBOOK_APP_ID,
+//   clientSecret: process.env.FACEBOOK_APP_SECRET,
+//   callbackURL: "/api/auth/facebook/callback",
+//   profileFields: ["id", "displayName", "emails"]
+// }, async (accessToken, refreshToken, profile, done) => {
+//   try {
+//     let email = profile.emails?.[0]?.value;
 
-    let user = await User.findOne({ email });
+//     let user = await User.findOne({ email });
 
-    if (!user) {
-      user = await User.create({
-        name: profile.displayName,
-        email: email,
-        password: "facebook_auth",
-      });
-    }
+//     if (!user) {
+//       user = await User.create({
+//         name: profile.displayName,
+//         email: email,
+//         password: "facebook_auth",
+//       });
+//     }
 
-    return done(null, user);
-  } catch (err) {
-    return done(err, null);
-  }
-}));
+//     return done(null, user);
+//   } catch (err) {
+//     return done(err, null);
+//   }
+// }));
 
 module.exports = passport;
