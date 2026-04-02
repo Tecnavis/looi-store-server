@@ -146,9 +146,24 @@ exports.createOrder = async (req, res) => {
 
         // STEP 5: Shiprocket (non-fatal — NEVER blocks order response)
         if (!skipShipping) {
-            setImmediate(async () => {
-                try {
-                    const sr = await postOrderToShiprocket({ ...orderData, _id: order._id });
+    try {
+        console.log("🚀 Sending order to Shiprocket...");
+
+        const sr = await postOrderToShiprocket({ ...orderData, _id: order._id });
+
+        console.log("✅ Shiprocket Response:", sr);
+
+        if (sr?.order_id) {
+            await Order.findByIdAndUpdate(order._id, {
+                shiprocket_order_id: sr.order_id
+            });
+        }
+
+    } catch (e) {
+        console.error("❌ Shiprocket ERROR:", e.message);
+        console.error("❌ Full Response:", JSON.stringify(e.response?.data, null, 2));
+    }
+}
                     if (sr?.order_id) {
                         await Order.findByIdAndUpdate(order._id, { shiprocket_order_id: sr.order_id });
                         console.log('Shiprocket order_id saved:', sr.order_id);
