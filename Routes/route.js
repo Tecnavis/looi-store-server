@@ -129,4 +129,70 @@ router.get('/user/orders', jwtMiddleware, orderController.getOrdersByUser);
 router.get('/invoice/:orderId',jwtMiddleware,invoiceController.generateInvoice);
 
 
-module.exports=router;
+module.exports=router; 
+// ── TEMP DEBUG: mirrors testshiprocket.js exactly, call GET /api/test-shiprocket
+router.get('/test-shiprocket', async (req, res) => {
+    const axios = require('axios');
+    const BASE_URL = 'https://apiv2.shiprocket.in/v1/external';
+    const EMAIL    = process.env.SHIPROCKET_EMAIL;
+    const PASSWORD = process.env.SHIPROCKET_PASSWORD;
+
+    const result = { steps: {} };
+
+    // Step 1: Auth
+    result.steps.auth = { email: EMAIL, passwordSet: !!PASSWORD };
+    let token;
+    try {
+        const r = await axios.post(`${BASE_URL}/auth/login`, { email: EMAIL, password: PASSWORD });
+        token = r.data.token;
+        result.steps.auth.status = 'OK';
+        result.steps.auth.tokenPreview = token?.substring(0, 20) + '...';
+    } catch (e) {
+        result.steps.auth.status = 'FAILED';
+        result.steps.auth.error = e.response?.data || e.message;
+        return res.json(result);
+    }
+
+    // Step 2: Create order — EXACT same payload as testshiprocket.js
+    const now = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    const orderDate = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
+
+    const testOrder = {
+        order_id:              `TEST-SERVER-${Date.now()}`,
+        order_date:            orderDate,
+        pickup_location:       'work',
+        channel_id:            5486974,
+        billing_customer_name: 'Thabu',
+        billing_last_name:     'User',
+        billing_address:       '123 Test Street',
+        billing_city:          'mpm',
+        billing_pincode:       '676505',
+        billing_state:         'Kerala',
+        billing_country:       'India',
+        billing_email:         'test@example.com',
+        billing_phone:         '9876543210',
+        billing_isd_code:      '91',
+        shipping_is_billing:   true,
+        order_items: [{ name: 'Test Product', sku: 'SKU-TEST-001', units: 1, selling_price: 499, discount: 0, tax: 0, hsn: 0 }],
+        payment_method:        'Prepaid',
+        shipping_charges: 0, giftwrap_charges: 0, transaction_charges: 0, total_discount: 0,
+        sub_total: 499, length: 10, breadth: 10, height: 10, weight: 0.5,
+    };
+
+    result.steps.orderCreate = { payload: testOrder };
+    try {
+        const r = await axios.post(`${BASE_URL}/orders/create/adhoc`, testOrder, {
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` }
+        });
+        result.steps.orderCreate.httpStatus = r.status;
+        result.steps.orderCreate.response   = r.data;
+        result.steps.orderCreate.status     = (r.data?.status === 0 || r.data?.status_code === 0) ? 'SR_REJECTED' : 'OK';
+    } catch (e) {
+        result.steps.orderCreate.status     = 'HTTP_ERROR';
+        result.steps.orderCreate.httpStatus = e.response?.status;
+        result.steps.orderCreate.error      = e.response?.data || e.message;
+    }
+
+    return res.json(result);
+});
