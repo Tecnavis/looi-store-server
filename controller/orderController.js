@@ -9,26 +9,23 @@ const { postOrderToShiprocket, cancelOrderInShiprocket } = require('../utils/shi
 const generateOrderId = () => `ORD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
 exports.createOrder = async (req, res) => {
-    // ── DEBUG: log exactly what arrived ─────────────────────────────────────
     console.log('=== /postOrder called ===');
     console.log('BODY keys:', Object.keys(req.body || {}));
     console.log('user:', req.body?.user);
     console.log('totalAmount:', req.body?.totalAmount, '| type:', typeof req.body?.totalAmount);
     console.log('paymentMethod:', req.body?.paymentMethod);
+    console.log('skipShipping value:', req.body?.skipShipping, '| type:', typeof req.body?.skipShipping);
     console.log('orderItems count:', Array.isArray(req.body?.orderItems) ? req.body.orderItems.length : 'NOT ARRAY');
-    if (Array.isArray(req.body?.orderItems) && req.body.orderItems[0]) {
-        const first = req.body.orderItems[0];
-        console.log('first item:', JSON.stringify({ productName: first.productName, quantity: first.quantity, price: first.price }));
-    }
 
     try {
         const {
             user, orderItems, shippingAddress, paymentMethod,
             paymentStatus, totalAmount, razorpayOrderId,
-            razorpayPaymentId, email, skipShipping
+            razorpayPaymentId, email
+            // ✅ REMOVED skipShipping — Shiprocket call always runs
         } = req.body;
 
-        // ── Validate required fields ─────────────────────────────────────────
+        // ── Validate required fields ──────────────────────────────────────────
         const missing = [];
         if (!user)            missing.push('user');
         if (!orderItems)      missing.push('orderItems');
@@ -48,7 +45,6 @@ exports.createOrder = async (req, res) => {
         const enrichedOrderItems = [];
         for (let item of orderItems) {
             if (!item.productName || !item.quantity || !item.price) {
-                console.log('BAD ITEM:', JSON.stringify(item));
                 return res.status(400).json({
                     success: false,
                     message: `Item missing productName/quantity/price: ${item.productName || 'unknown'}`
@@ -75,30 +71,30 @@ exports.createOrder = async (req, res) => {
                 price:       Number(item.price),
                 color:       item.color   || '',
                 size:        item.size    || '',
-                hsn: item.hsn || product?.hsn || '0000',
-                sku: item.sku || product?.sku || `SKU-${Date.now()}`,
-                length: item.length || product?.length || 10,
-                width: item.width || product?.width || 10,
-                height: item.height || product?.height || 10,
-                weight: item.weight || product?.weight || 0.5,
+                hsn:         item.hsn     || product?.hsn || '0000',
+                sku:         item.sku     || product?.sku || `SKU-${Date.now()}`,
+                length:      item.length  || product?.length || 10,
+                width:       item.width   || product?.width  || 10,
+                height:      item.height  || product?.height || 10,
+                weight:      item.weight  || product?.weight || 0.5,
                 coverImage:  product?.coverImage || '',
             });
         }
 
         // ── Build order ───────────────────────────────────────────────────────
         const orderData = {
-            orderId:          generateOrderId(),
+            orderId:           generateOrderId(),
             user,
-            orderItems:       enrichedOrderItems,
+            orderItems:        enrichedOrderItems,
             shippingAddress,
             paymentMethod,
-            paymentStatus:    paymentStatus || 'Pending',
-            totalAmount:      Number(totalAmount),
-            razorpayOrderId:  razorpayOrderId  || undefined,
+            paymentStatus:     paymentStatus || 'Pending',
+            totalAmount:       Number(totalAmount),
+            razorpayOrderId:   razorpayOrderId   || undefined,
             razorpayPaymentId: razorpayPaymentId || undefined,
-            email:            email || '',
-            orderStatus:      'Pending',
-            orderDate:        new Date()
+            email:             email || '',
+            orderStatus:       'Pending',
+            orderDate:         new Date()
         };
 
         console.log('Saving order with orderId:', orderData.orderId, '| amount:', orderData.totalAmount);
@@ -122,12 +118,12 @@ exports.createOrder = async (req, res) => {
             } catch (e) { console.error('Stock error (non-fatal):', e.message); }
         }
 
-        // ── STEP 3: Link to user (non-fatal) ─────────────────────────────────
+        // ── STEP 3: Link to user (non-fatal) ──────────────────────────────────
         try {
             await User.findByIdAndUpdate(user, { $push: { orders: order._id } }, { new: true });
         } catch (e) { console.error('User link error (non-fatal):', e.message); }
 
-        // ── STEP 4: Send email (non-fatal — only if valid email) ─────────────
+        // ── STEP 4: Send email (non-fatal) ────────────────────────────────────
         const recipientEmail = email || order.email;
         if (recipientEmail && typeof recipientEmail === 'string' && recipientEmail.includes('@')) {
             const html = enrichedOrderItems.map(item =>
@@ -141,21 +137,20 @@ exports.createOrder = async (req, res) => {
             ).catch(e => console.error('Email error (non-fatal):', e.message));
         }
 
-        // ── STEP 5: Shiprocket (non-fatal — NEVER blocks order response) ──────
-        if (!skipShipping) {
-            // Run in background — do NOT await in main flow
-            setImmediate(async () => {
-                try {
-                    const sr = await postOrderToShiprocket({ ...orderData, _id: order._id });
-                    if (sr?.order_id) {
-                        await Order.findByIdAndUpdate(order._id, { shiprocket_order_id: sr.order_id });
-                        console.log('Shiprocket order_id saved:', sr.order_id);
-                    }
-                } catch (e) {
-                    console.error('Shiprocket FULL ERROR:', e.response?.data || e.message);
+        // ── STEP 5: Shiprocket — always runs, no skipShipping check ──────────
+        console.log('[Shiprocket] Starting order push for orderId:', orderData.orderId);
+        postOrderToShiprocket({ ...orderData, _id: order._id })
+            .then(async (sr) => {
+                console.log('[Shiprocket] Push succeeded. order_id:', sr?.order_id);
+                if (sr?.order_id) {
+                    await Order.findByIdAndUpdate(order._id, { shiprocket_order_id: String(sr.order_id) });
+                    console.log('[Shiprocket] shiprocket_order_id saved to DB:', sr.order_id);
                 }
+            })
+            .catch((e) => {
+                console.error('[Shiprocket] Push FAILED for orderId:', orderData.orderId);
+                console.error('[Shiprocket] Error detail:', JSON.stringify(e.response?.data || e.message, null, 2));
             });
-        }
 
         // ── Always return 200 once order is in DB ─────────────────────────────
         console.log('Returning success for order:', order._id);
@@ -167,7 +162,6 @@ exports.createOrder = async (req, res) => {
         console.error('Error message:', error.message);
         if (error.name === 'ValidationError') {
             const fields = Object.keys(error.errors).map(f => `${f}: ${error.errors[f].message}`).join('; ');
-            console.error('Validation fields:', fields);
             return res.status(500).json({ success: false, message: 'Validation failed — ' + fields, error: error.message });
         }
         return res.status(500).json({ success: false, message: 'Failed to create order: ' + error.message, error: error.message });
