@@ -40,11 +40,11 @@ async function run() {
         order_date:            orderDate,
         pickup_location:       'work',            // ✅ correct name
         channel_id:            5486974,           // your CUSTOM channel id
-        billing_customer_name: 'Test',
+        billing_customer_name: 'Thabu',
         billing_last_name:     'User',
         billing_address:       '123 Test Street',
-        billing_city:          'Thrissur',
-        billing_pincode:       '680001',
+        billing_city:          'mpm',
+        billing_pincode:       '676505',
         billing_state:         'Kerala',
         billing_country:       'India',
         billing_email:         'test@example.com',

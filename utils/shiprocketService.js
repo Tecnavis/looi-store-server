@@ -64,7 +64,7 @@ const postOrderToShiprocket = async (orderData) => {
             billing_state:         orderData.shippingAddress.state,
             billing_country:       'India',
             billing_email:         orderData.email || '',
-            billing_phone:         String(orderData.shippingAddress.phoneNumber),
+            billing_phone:         String(orderData.shippingAddress.phoneNumber || orderData.shippingAddress.phone || '0000000000'),
             billing_isd_code:      '91',
 
             shipping_is_billing:   true,
@@ -87,6 +87,15 @@ const postOrderToShiprocket = async (orderData) => {
 
         console.log('[Shiprocket] Sending payload:', JSON.stringify(payload, null, 2));
 
+        // ── Pre-flight check: warn if any critical field is empty/null ────────
+        const requiredFields = ['order_id', 'order_date', 'billing_customer_name',
+            'billing_address', 'billing_city', 'billing_pincode', 'billing_state',
+            'billing_phone', 'sub_total'];
+        const emptyFields = requiredFields.filter(f => !payload[f]);
+        if (emptyFields.length > 0) {
+            console.error('[Shiprocket] ⚠️  PRE-FLIGHT: Missing/empty required fields:', emptyFields);
+        }
+
         const response = await axios.post(
             `${shiprocketConfig.baseURL}/orders/create/adhoc`,
             payload,
@@ -95,8 +104,15 @@ const postOrderToShiprocket = async (orderData) => {
 
         console.log('[Shiprocket] Response:', JSON.stringify(response.data, null, 2));
 
+        // Shiprocket returns IDs at root OR inside payload — handle both
+        const payload_data = response.data?.payload || response.data;
+        const order_id    = payload_data?.order_id    || response.data?.order_id;
+        const shipment_id = payload_data?.shipment_id || response.data?.shipment_id;
+        const awb_code    = payload_data?.awb_code    || response.data?.awb_code;
+
+        console.log('[Shiprocket] Parsed IDs → order_id:', order_id, '| shipment_id:', shipment_id);
+
         // Save Shiprocket IDs back to DB
-        const { order_id, shipment_id, awb_code } = response.data;
         if (orderData._id) {
             const fields = {};
             if (order_id)    fields.shiprocket_order_id = String(order_id);
@@ -108,24 +124,34 @@ const postOrderToShiprocket = async (orderData) => {
             }
         }
 
-        // Auto-assign AWB
+        // Auto-assign AWB (pass token to avoid a second auth round-trip)
         if (shipment_id) {
-            await generateAWB(shipment_id);
+            await generateAWB(shipment_id, token);
         }
 
-        return response.data;
+        // Return a normalised object so callers always get order_id at root
+        return { ...response.data, order_id, shipment_id, awb_code };
 
     } catch (error) {
-        console.error('[Shiprocket] Order Error:', JSON.stringify(error.response?.data || error.message, null, 2));
-        throw new Error('Failed to post order to Shiprocket');
+        const detail = error.response?.data || error.message;
+        console.error('[Shiprocket] Order Error (full):', JSON.stringify(detail, null, 2));
+        console.error('[Shiprocket] HTTP status:', error.response?.status);
+        console.error('[Shiprocket] Payload that was sent:', JSON.stringify(
+            // re-log just the top-level fields so we can see what Shiprocket got
+            Object.fromEntries(
+                Object.entries(error.config?.data ? JSON.parse(error.config.data) : {})
+                    .filter(([k]) => !['order_items'].includes(k))
+            ), null, 2
+        ));
+        throw new Error('Failed to post order to Shiprocket: ' + JSON.stringify(detail));
     }
 };
 
 // ─── Generate AWB ─────────────────────────────────────────────────────────────
 
-const generateAWB = async (shipmentId) => {
+const generateAWB = async (shipmentId, existingToken = null) => {
     try {
-        const token = await authenticateShiprocket();
+        const token = existingToken || await authenticateShiprocket();
         const response = await axios.post(
             `${shiprocketConfig.baseURL}/courier/assign/awb`,
             { shipment_id: shipmentId, courier_id: null },

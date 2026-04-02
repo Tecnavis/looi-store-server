@@ -137,19 +137,25 @@ exports.createOrder = async (req, res) => {
             ).catch(e => console.error('Email error (non-fatal):', e.message));
         }
 
-        // ── STEP 5: Shiprocket — always runs, no skipShipping check ──────────
+        // ── STEP 5: Shiprocket — fire-and-forget but with full error surface ─
         console.log('[Shiprocket] Starting order push for orderId:', orderData.orderId);
         postOrderToShiprocket({ ...orderData, _id: order._id })
             .then(async (sr) => {
-                console.log('[Shiprocket] Push succeeded. order_id:', sr?.order_id);
-                if (sr?.order_id) {
-                    await Order.findByIdAndUpdate(order._id, { shiprocket_order_id: String(sr.order_id) });
-                    console.log('[Shiprocket] shiprocket_order_id saved to DB:', sr.order_id);
+                const srOrderId = sr?.order_id;
+                console.log('[Shiprocket] Push succeeded. order_id:', srOrderId, '| shipment_id:', sr?.shipment_id);
+                if (srOrderId) {
+                    await Order.findByIdAndUpdate(order._id, { shiprocket_order_id: String(srOrderId) });
+                    console.log('[Shiprocket] shiprocket_order_id saved to DB:', srOrderId);
+                } else {
+                    console.warn('[Shiprocket] ⚠️  order_id missing from response. Full SR response:', JSON.stringify(sr, null, 2));
                 }
             })
             .catch((e) => {
-                console.error('[Shiprocket] Push FAILED for orderId:', orderData.orderId);
-                console.error('[Shiprocket] Error detail:', JSON.stringify(e.response?.data || e.message, null, 2));
+                console.error('╔══════════════════════════════════════════════╗');
+                console.error('║  [Shiprocket] PUSH FAILED                    ║');
+                console.error('╚══════════════════════════════════════════════╝');
+                console.error('orderId:', orderData.orderId);
+                console.error('Reason:', e.message);
             });
 
         // ── Always return 200 once order is in DB ─────────────────────────────
