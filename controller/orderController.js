@@ -9,6 +9,7 @@ const { postOrderToShiprocket, cancelOrderInShiprocket } = require('../utils/shi
 const generateOrderId = () => `ORD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
 exports.createOrder = async (req, res) => {
+    // ── DEBUG: log exactly what arrived ─────────────────────────────────────
     console.log('=== /postOrder called ===');
     console.log('BODY keys:', Object.keys(req.body || {}));
     console.log('user:', req.body?.user);
@@ -27,7 +28,7 @@ exports.createOrder = async (req, res) => {
             razorpayPaymentId, email, skipShipping
         } = req.body;
 
-        // Validate required fields
+        // ── Validate required fields ─────────────────────────────────────────
         const missing = [];
         if (!user)            missing.push('user');
         if (!orderItems)      missing.push('orderItems');
@@ -43,7 +44,7 @@ exports.createOrder = async (req, res) => {
             return res.status(400).json({ success: false, message: 'orderItems must be a non-empty array' });
         }
 
-        // Enrich order items
+        // ── Enrich order items ────────────────────────────────────────────────
         const enrichedOrderItems = [];
         for (let item of orderItems) {
             if (!item.productName || !item.quantity || !item.price) {
@@ -67,10 +68,6 @@ exports.createOrder = async (req, res) => {
                 } catch (e) { /* ignore */ }
             }
 
-            // FIX: SKU guaranteed non-empty for Shiprocket
-            const safeSku = item.sku || product?.sku ||
-                `SKU-${item.productName.replace(/\s+/g, '-').toUpperCase().substring(0, 20)}`;
-
             enrichedOrderItems.push({
                 productId:   product ? product._id : (lookupId || null),
                 productName: item.productName,
@@ -78,39 +75,39 @@ exports.createOrder = async (req, res) => {
                 price:       Number(item.price),
                 color:       item.color   || '',
                 size:        item.size    || '',
-                hsn:         item.hsn     || product?.hsn    || '',
-                sku:         safeSku,
-                length:      item.length  || product?.length || 10,
-                width:       item.width   || product?.width  || 10,
-                height:      item.height  || product?.height || 10,
-                weight:      item.weight  || product?.weight || 0.5,
+                hsn:         item.hsn     || (product?.hsn)    || '',
+                sku:         item.sku     || (product?.sku)    || '',
+                length:      item.length  || (product?.length) || 0,
+                width:       item.width   || (product?.width)  || 0,
+                height:      item.height  || (product?.height) || 0,
+                weight:      item.weight  || (product?.weight) || 0,
                 coverImage:  product?.coverImage || '',
             });
         }
 
-        // Build order
+        // ── Build order ───────────────────────────────────────────────────────
         const orderData = {
-            orderId:           generateOrderId(),
+            orderId:          generateOrderId(),
             user,
-            orderItems:        enrichedOrderItems,
+            orderItems:       enrichedOrderItems,
             shippingAddress,
             paymentMethod,
-            paymentStatus:     paymentStatus || 'Pending',
-            totalAmount:       Number(totalAmount),
-            razorpayOrderId:   razorpayOrderId  || undefined,
+            paymentStatus:    paymentStatus || 'Pending',
+            totalAmount:      Number(totalAmount),
+            razorpayOrderId:  razorpayOrderId  || undefined,
             razorpayPaymentId: razorpayPaymentId || undefined,
-            email:             email || '',
-            orderStatus:       'Pending',
-            orderDate:         new Date()
+            email:            email || '',
+            orderStatus:      'Pending',
+            orderDate:        new Date()
         };
 
         console.log('Saving order with orderId:', orderData.orderId, '| amount:', orderData.totalAmount);
 
-        // STEP 1: Save to DB
+        // ── STEP 1: Save to DB ────────────────────────────────────────────────
         const order = await Order.create(orderData);
         console.log('Order saved! _id:', order._id);
 
-        // STEP 2: Deduct stock (non-fatal)
+        // ── STEP 2: Deduct stock (non-fatal) ──────────────────────────────────
         for (let item of enrichedOrderItems) {
             if (!item.productId || !item.size || !item.color) continue;
             try {
@@ -125,12 +122,12 @@ exports.createOrder = async (req, res) => {
             } catch (e) { console.error('Stock error (non-fatal):', e.message); }
         }
 
-        // STEP 3: Link to user (non-fatal)
+        // ── STEP 3: Link to user (non-fatal) ─────────────────────────────────
         try {
             await User.findByIdAndUpdate(user, { $push: { orders: order._id } }, { new: true });
         } catch (e) { console.error('User link error (non-fatal):', e.message); }
 
-        // STEP 4: Send email (non-fatal)
+        // ── STEP 4: Send email (non-fatal — only if valid email) ─────────────
         const recipientEmail = email || order.email;
         if (recipientEmail && typeof recipientEmail === 'string' && recipientEmail.includes('@')) {
             const html = enrichedOrderItems.map(item =>
@@ -144,8 +141,9 @@ exports.createOrder = async (req, res) => {
             ).catch(e => console.error('Email error (non-fatal):', e.message));
         }
 
-        // STEP 5: Shiprocket (non-fatal — NEVER blocks order response)
+        // ── STEP 5: Shiprocket (non-fatal — NEVER blocks order response) ──────
         if (!skipShipping) {
+            // Run in background — do NOT await in main flow
             setImmediate(async () => {
                 try {
                     const sr = await postOrderToShiprocket({ ...orderData, _id: order._id });
@@ -154,13 +152,12 @@ exports.createOrder = async (req, res) => {
                         console.log('Shiprocket order_id saved:', sr.order_id);
                     }
                 } catch (e) {
-                    // FIX: log full response data so you can diagnose Shiprocket rejections
                     console.error('Shiprocket background error (order already saved):', e.message);
-                    console.error('Shiprocket response data:', JSON.stringify(e.response?.data, null, 2));
                 }
             });
         }
 
+        // ── Always return 200 once order is in DB ─────────────────────────────
         console.log('Returning success for order:', order._id);
         return res.status(200).json({ success: true, message: 'Order created successfully', order });
 
