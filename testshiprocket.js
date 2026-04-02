@@ -1,7 +1,6 @@
 /**
- * SHIPROCKET DIAGNOSTIC SCRIPT
- * Run this on your server: node test-shiprocket.js
- * It will show you EXACTLY what Shiprocket API returns at each step.
+ * SHIPROCKET DIAGNOSTIC v2
+ * Run: node test-shiprocket-v2.js
  */
 
 require('dotenv').config();
@@ -19,43 +18,19 @@ const log = (label, data) => {
 };
 
 async function run() {
-    // ── STEP 1: Authenticate ──────────────────────────────────────────
-    console.log('\n[1] Authenticating with:', EMAIL);
+    // ── STEP 1: Auth ─────────────────────────────────────────────────
+    console.log('\n[1] Authenticating...');
     let token;
     try {
         const res = await axios.post(`${BASE_URL}/auth/login`, { email: EMAIL, password: PASSWORD });
         token = res.data.token;
-        log('AUTH SUCCESS', { token: token?.slice(0, 40) + '...' });
+        console.log('✅ Auth OK');
     } catch (e) {
-        log('AUTH FAILED', e.response?.data || e.message);
+        log('❌ AUTH FAILED', e.response?.data || e.message);
         process.exit(1);
     }
 
-    // ── STEP 2: Check pickup locations ───────────────────────────────
-    console.log('\n[2] Fetching your pickup locations...');
-    try {
-        const res = await axios.get(`${BASE_URL}/settings/company/pickup`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        log('PICKUP LOCATIONS', res.data);
-    } catch (e) {
-        log('PICKUP LOCATIONS FAILED', e.response?.data || e.message);
-    }
-
-    // ── STEP 3: Check channels ───────────────────────────────────────
-    console.log('\n[3] Fetching your channels...');
-    try {
-        const res = await axios.get(`${BASE_URL}/channels`, {
-            headers: { Authorization: `Bearer ${token}` }
-        });
-        log('CHANNELS', res.data);
-    } catch (e) {
-        log('CHANNELS FAILED', e.response?.data || e.message);
-    }
-
-    // ── STEP 4: Try creating a test order ────────────────────────────
-    console.log('\n[4] Creating a test order...');
-
+    // ── STEP 2: Create order with pickup_location = "work" ───────────
     const now = new Date();
     const pad = (n) => String(n).padStart(2, '0');
     const orderDate = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())} ${pad(now.getHours())}:${pad(now.getMinutes())}`;
@@ -63,7 +38,8 @@ async function run() {
     const testOrder = {
         order_id:              `TEST-${Date.now()}`,
         order_date:            orderDate,
-        pickup_location:       'Primary',            // ← Change if your pickup is named differently
+        pickup_location:       'work',            // ✅ correct name
+        channel_id:            5486974,           // your CUSTOM channel id
         billing_customer_name: 'Test',
         billing_last_name:     'User',
         billing_address:       '123 Test Street',
@@ -96,21 +72,43 @@ async function run() {
         weight:              0.5,
     };
 
-    log('SENDING PAYLOAD', testOrder);
+    log('[2] SENDING ORDER PAYLOAD', testOrder);
 
     try {
         const res = await axios.post(
             `${BASE_URL}/orders/create/adhoc`,
             testOrder,
-            { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }
+            {
+                headers: {
+                    'Content-Type':  'application/json',
+                    'Authorization': `Bearer ${token}`
+                }
+            }
         );
-        log('ORDER CREATE SUCCESS ✅', res.data);
-    } catch (e) {
-        log('ORDER CREATE FAILED ❌', e.response?.data || e.message);
-        if (e.response?.data?.errors) {
-            console.log('\n⚠️  VALIDATION ERRORS:');
-            console.log(JSON.stringify(e.response.data.errors, null, 2));
+        log('✅ ORDER CREATE RESPONSE (HTTP ' + res.status + ')', res.data);
+
+        const orderId = res.data?.order_id || res.data?.payload?.order_id;
+        const shipmentId = res.data?.shipment_id || res.data?.payload?.shipment_id;
+        console.log('\n>> order_id:', orderId);
+        console.log('>> shipment_id:', shipmentId);
+
+        // ── STEP 3: Verify the order exists in Shiprocket ────────────
+        if (orderId) {
+            console.log('\n[3] Verifying order in Shiprocket...');
+            try {
+                const verify = await axios.get(`${BASE_URL}/orders/show/${orderId}`, {
+                    headers: { Authorization: `Bearer ${token}` }
+                });
+                log('✅ ORDER FOUND IN SHIPROCKET', verify.data);
+            } catch (e) {
+                log('❌ ORDER NOT FOUND', e.response?.data || e.message);
+            }
         }
+
+    } catch (e) {
+        log('❌ ORDER CREATE FAILED', e.response?.data || e.message);
+        console.log('\nHTTP Status:', e.response?.status);
+        console.log('Headers sent:', e.config?.headers);
     }
 }
 
