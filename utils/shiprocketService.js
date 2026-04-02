@@ -2,11 +2,11 @@ const axios = require('axios');
 const shiprocketConfig = require('../config/shiprocketConfig');
 const Order = require('../models/orderModel');
 
-// ================= TOKEN CACHE =================
+// TOKEN CACHE
 let cachedToken = null;
 let tokenExpiry = null;
 
-// ================= AUTH =================
+// AUTH
 const authenticateShiprocket = async () => {
     try {
         if (cachedToken && tokenExpiry > Date.now()) {
@@ -22,17 +22,18 @@ const authenticateShiprocket = async () => {
         );
 
         cachedToken = response.data.token;
-        tokenExpiry = Date.now() + (240 * 60 * 60 * 1000); // 240 hours
+        tokenExpiry = Date.now() + (240 * 60 * 60 * 1000);
 
         return cachedToken;
+
     } catch (error) {
-        console.error('Auth Error:', error.response?.data || error.message);
-        throw new Error('Shiprocket authentication failed');
+        console.error("❌ Auth Error:", error.response?.data || error.message);
+        throw new Error("Shiprocket auth failed");
     }
 };
 
-// ================= GET BEST COURIER =================
-const getCourierId = async (pickup, delivery, weight = 0.5) => {
+// GET COURIER
+const getCourierId = async (deliveryPincode, weight = 0.5) => {
     const token = await authenticateShiprocket();
 
     try {
@@ -40,49 +41,38 @@ const getCourierId = async (pickup, delivery, weight = 0.5) => {
             `${shiprocketConfig.baseURL}/courier/serviceability/`,
             {
                 params: {
-                    pickup_postcode: pickup,
-                    delivery_postcode: delivery,
+                    pickup_postcode: "676509", // 🔥 CHANGE THIS
+                    delivery_postcode: deliveryPincode,
                     weight
                 },
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
+                headers: { Authorization: `Bearer ${token}` }
             }
         );
 
         const couriers = response.data?.data?.available_courier_companies;
 
         if (!couriers || couriers.length === 0) {
-            throw new Error('No courier available');
+            throw new Error("No courier available");
         }
 
-        // Select cheapest courier
-        const bestCourier = couriers.sort((a, b) => a.rate - b.rate)[0];
-
-        return bestCourier.courier_company_id;
+        return couriers[0].courier_company_id;
 
     } catch (error) {
-        console.error('Courier Error:', error.response?.data || error.message);
-        throw new Error('Failed to fetch courier');
+        console.error("❌ Courier Error:", error.response?.data || error.message);
+        throw new Error("Courier fetch failed");
     }
 };
 
-// ================= FORMAT DATE =================
-const formatDate = () => {
-    const d = new Date();
-    return d.toISOString().slice(0, 16).replace("T", " ");
-};
-
-// ================= CREATE ORDER =================
+// CREATE ORDER
 const postOrderToShiprocket = async (orderData) => {
     try {
         const token = await authenticateShiprocket();
 
         const firstItem = orderData.orderItems[0];
 
-        const shiprocketOrderData = {
+        const payload = {
             order_id: orderData.orderId,
-            order_date: formatDate(),
+            order_date: new Date().toISOString().slice(0, 16).replace("T", " "),
             pickup_location: shiprocketConfig.pickupLocation,
 
             billing_customer_name: orderData.shippingAddress.firstName,
@@ -97,17 +87,16 @@ const postOrderToShiprocket = async (orderData) => {
 
             shipping_is_billing: true,
 
-            order_items: orderData.orderItems.map((item, index) => ({
+            order_items: orderData.orderItems.map((item, i) => ({
                 name: item.productName,
-                sku: item.sku || `ITEM-${index + 1}`,
+                sku: item.sku || `ITEM-${i}`,
                 units: item.quantity,
                 selling_price: item.price,
                 tax: 0,
-                hsn: item.hsn || '',
                 length: item.length || 10,
                 breadth: item.width || 10,
                 height: item.height || 10,
-                weight: item.weight || 0.5,
+                weight: item.weight || 0.5
             })),
 
             payment_method: orderData.paymentMethod === 'COD' ? 'COD' : 'Prepaid',
@@ -121,123 +110,40 @@ const postOrderToShiprocket = async (orderData) => {
             is_return: 0
         };
 
-        const response = await axios.post(
+        console.log("📦 Shiprocket Payload:", payload);
+
+        const orderRes = await axios.post(
             `${shiprocketConfig.baseURL}/orders/create/adhoc`,
-            shiprocketOrderData,
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                }
-            }
+            payload,
+            { headers: { Authorization: `Bearer ${token}` } }
         );
 
-        const { order_id, shipment_id } = response.data;
+        const shipmentId = orderRes.data.shipment_id;
 
-        // ================= GET COURIER =================
-        const courierId = await getCourierId(
-            orderData.shippingAddress.postalCode,
-            orderData.shippingAddress.postalCode
-        );
+        // GET COURIER
+        const courierId = await getCourierId(orderData.shippingAddress.postalCode);
 
-        // ================= ASSIGN AWB =================
-        const awbData = await assignAWB(shipment_id, courierId);
-
-        // ================= SAVE TO DB =================
-        if (orderData._id) {
-            await Order.findByIdAndUpdate(orderData._id, {
-                shipmentId: shipment_id,
-                awbCode: awbData.awb_code,
-                shiprocketOrderId: order_id
-            });
-        }
-
-        return {
-            shipment_id,
-            awb_code: awbData.awb_code
-        };
-
-    } catch (error) {
-        console.error('Order Error:', error.response?.data || error.message);
-        throw new Error('Order creation failed');
-    }
-};
-
-// ================= ASSIGN AWB =================
-const assignAWB = async (shipmentId, courierId) => {
-    const token = await authenticateShiprocket();
-
-    try {
-        const response = await axios.post(
+        // ASSIGN AWB
+        const awbRes = await axios.post(
             `${shiprocketConfig.baseURL}/courier/assign/awb`,
             {
                 shipment_id: shipmentId,
                 courier_id: courierId
             },
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                }
-            }
+            { headers: { Authorization: `Bearer ${token}` } }
         );
 
-        return response.data.response.data;
+        const awb = awbRes.data.response.data.awb_code;
+
+        return {
+            shipment_id: shipmentId,
+            awb_code: awb
+        };
 
     } catch (error) {
-        console.error('AWB Error:', error.response?.data || error.message);
-        throw new Error('AWB generation failed');
+        console.error("❌ Shiprocket Error:", error.response?.data || error.message);
+        throw error;
     }
 };
 
-// ================= TRACK =================
-const fetchShiprocketOrderStatus = async (awbCode) => {
-    try {
-        const token = await authenticateShiprocket();
-
-        const response = await axios.get(
-            `${shiprocketConfig.baseURL}/courier/track/awb/${awbCode}`,
-            {
-                headers: {
-                    Authorization: `Bearer ${token}`
-                }
-            }
-        );
-
-        return response.data;
-
-    } catch (error) {
-        console.error('Tracking Error:', error.response?.data || error.message);
-        throw new Error('Tracking failed');
-    }
-};
-
-// ================= CANCEL =================
-const cancelOrderInShiprocket = async (shiprocketOrderId) => {
-    try {
-        const token = await authenticateShiprocket();
-
-        const response = await axios.post(
-            `${shiprocketConfig.baseURL}/orders/cancel`,
-            { ids: [shiprocketOrderId] },
-            {
-                headers: {
-                    'Content-Type': 'application/json',
-                    Authorization: `Bearer ${token}`
-                }
-            }
-        );
-
-        return response.data;
-
-    } catch (error) {
-        console.error('Cancel Error:', error.response?.data || error.message);
-        throw new Error('Cancel failed');
-    }
-};
-
-module.exports = {
-    postOrderToShiprocket,
-    fetchShiprocketOrderStatus,
-    cancelOrderInShiprocket
-};
+module.exports = { postOrderToShiprocket };
