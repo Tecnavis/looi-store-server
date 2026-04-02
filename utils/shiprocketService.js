@@ -3,211 +3,240 @@ const axios = require('axios');
 const shiprocketConfig = require('../config/shiprocketConfig');
 const Order = require('../models/orderModel');
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
+const BASE = shiprocketConfig.baseURL || 'https://apiv2.shiprocket.in/v1/external';
 
-/**
- * Shiprocket requires date as "YYYY-MM-DD HH:MM"
- * It REJECTS ISO strings like "2026-04-02T10:30:00.000Z"
- */
-const formatShiprocketDate = (date) => {
+// ─── Date formatter ───────────────────────────────────────────────────────────
+const fmtDate = (date) => {
     const d = new Date(date);
-    const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    const p = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`;
 };
 
-// ─── Authenticate ─────────────────────────────────────────────────────────────
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+const getToken = async () => {
+    const res = await axios.post(`${BASE}/auth/login`, {
+        email:    shiprocketConfig.email,
+        password: shiprocketConfig.password,
+    });
+    if (!res.data?.token) throw new Error('No token in Shiprocket auth response');
+    console.log('[SR] Auth OK');
+    return res.data.token;
+};
 
-const authenticateShiprocket = async () => {
-    try {
-        const response = await axios.post(`${shiprocketConfig.baseURL}/auth/login`, {
-            email:    shiprocketConfig.email,
-            password: shiprocketConfig.password,
-        });
-        return response.data.token;
-    } catch (error) {
-        console.error('[Shiprocket] Auth Error:', JSON.stringify(error.response?.data || error.message, null, 2));
-        throw new Error('Failed to authenticate with Shiprocket');
+// ─── Build payload (mirrors testshiprocket.js exactly) ────────────────────────
+const buildPayload = (orderData) => {
+    const addr = orderData.shippingAddress || {};
+
+    const phone = String(
+        addr.phoneNumber || addr.phone || addr.mobile || '0000000000'
+    ).replace(/\D/g, '').slice(-10) || '0000000000';
+
+    const orderItems = (orderData.orderItems || []).map((item, i) => ({
+        name:          item.productName   || `Item ${i + 1}`,
+        sku:           item.sku           || `SKU-${Date.now()}-${i}`,
+        units:         Number(item.quantity) || 1,
+        selling_price: Number(item.price)    || 0,
+        discount:      0,
+        tax:           0,
+        hsn:           item.hsn ? Number(item.hsn) : 0,
+    }));
+
+    const first = orderData.orderItems?.[0] || {};
+
+    // payment_method: Shiprocket only accepts exactly "COD" or "Prepaid"
+    const pm = String(orderData.paymentMethod || '').trim();
+    const payment_method = pm === 'COD' ? 'COD' : 'Prepaid';
+
+    const payload = {
+        order_id:              String(orderData.orderId),
+        order_date:            fmtDate(orderData.orderDate || new Date()),
+        pickup_location:       'work',
+        channel_id:            5486974,
+
+        billing_customer_name: addr.firstName    || 'Customer',
+        billing_last_name:     addr.lastName     || '',
+        billing_address:       addr.houseBuilding || addr.address || 'N/A',
+        billing_address_2:     addr.streetArea   || '',
+        billing_city:          addr.cityDistrict || addr.city    || 'N/A',
+        billing_pincode:       String(addr.postalCode || addr.pincode || '000000'),
+        billing_state:         addr.state        || 'N/A',
+        billing_country:       'India',
+        billing_email:         orderData.email   || '',
+        billing_phone:         phone,
+        billing_isd_code:      '91',
+
+        shipping_is_billing:   true,
+        order_items:           orderItems,
+
+        payment_method,
+        shipping_charges:      0,
+        giftwrap_charges:      0,
+        transaction_charges:   0,
+        total_discount:        0,
+        sub_total:             Number(orderData.totalAmount) || 0,
+
+        length:  Number(first.length) || 10,
+        breadth: Number(first.width)  || 10,
+        height:  Number(first.height) || 10,
+        weight:  Number(first.weight) || 0.5,
+    };
+
+    // Log any suspicious fields
+    const suspicious = Object.entries(payload)
+        .filter(([k, v]) => v === null || v === undefined || v === '' || v === 'N/A' || v === '000000')
+        .map(([k]) => k);
+    if (suspicious.length) {
+        console.warn('[SR] ⚠️  Empty/default fields:', suspicious);
+        console.warn('[SR] shippingAddress received:', JSON.stringify(addr, null, 2));
     }
+
+    return payload;
 };
 
 // ─── Post Order ───────────────────────────────────────────────────────────────
-
 const postOrderToShiprocket = async (orderData) => {
+    // Auth
+    let token;
     try {
-        const token = await authenticateShiprocket();
+        token = await getToken();
+    } catch (e) {
+        console.error('[SR] AUTH FAILED:', e.response?.data || e.message);
+        throw new Error('Shiprocket auth failed: ' + (e.response?.data?.message || e.message));
+    }
 
-        // order_items — flat, NO nested dimensions object
-        const orderItems = orderData.orderItems.map(item => ({
-            name:          item.productName,
-            sku:           item.sku || `SKU-${Date.now()}`,
-            units:         Number(item.quantity),
-            selling_price: Number(item.price),
-            discount:      0,
-            tax:           0,
-            hsn:           item.hsn || 0,
-        }));
+    const payload = buildPayload(orderData);
+    console.log('[SR] Sending payload:\n', JSON.stringify(payload, null, 2));
 
-        const firstItem = orderData.orderItems[0];
-
-        const payload = {
-            order_id:              orderData.orderId,
-            order_date:            formatShiprocketDate(orderData.orderDate), // ✅ correct format
-            pickup_location:       shiprocketConfig.pickupLocation,           // ✅ "work"
-            channel_id:            shiprocketConfig.channelId,                // ✅ 5486974
-
-            billing_customer_name: orderData.shippingAddress.firstName,
-            billing_last_name:     orderData.shippingAddress.lastName  || '',
-            billing_address:       orderData.shippingAddress.houseBuilding,
-            billing_address_2:     orderData.shippingAddress.streetArea || '',
-            billing_city:          orderData.shippingAddress.cityDistrict,
-            billing_pincode:       String(orderData.shippingAddress.postalCode),
-            billing_state:         orderData.shippingAddress.state,
-            billing_country:       'India',
-            billing_email:         orderData.email || '',
-            billing_phone:         String(orderData.shippingAddress.phoneNumber || orderData.shippingAddress.phone || '0000000000'),
-            billing_isd_code:      '91',
-
-            shipping_is_billing:   true,
-
-            order_items:           orderItems, // ✅ no nested dimensions
-
-            payment_method:        orderData.paymentMethod === 'COD' ? 'COD' : 'Prepaid',
-            shipping_charges:      0,
-            giftwrap_charges:      0,
-            transaction_charges:   0,
-            total_discount:        0,
-            sub_total:             Number(orderData.totalAmount),
-
-            // Package dimensions at ORDER root level (correct placement)
-            length:                firstItem.length || 10,
-            breadth:               firstItem.width  || 10,
-            height:                firstItem.height || 10,
-            weight:                firstItem.weight || 0.5,
-        };
-
-        console.log('[Shiprocket] Sending payload:', JSON.stringify(payload, null, 2));
-
-        // ── Pre-flight check: warn if any critical field is empty/null ────────
-        const requiredFields = ['order_id', 'order_date', 'billing_customer_name',
-            'billing_address', 'billing_city', 'billing_pincode', 'billing_state',
-            'billing_phone', 'sub_total'];
-        const emptyFields = requiredFields.filter(f => !payload[f]);
-        if (emptyFields.length > 0) {
-            console.error('[Shiprocket] ⚠️  PRE-FLIGHT: Missing/empty required fields:', emptyFields);
-        }
-
-        const response = await axios.post(
-            `${shiprocketConfig.baseURL}/orders/create/adhoc`,
+    // POST — catch HTTP-level errors
+    let srRes;
+    try {
+        srRes = await axios.post(
+            `${BASE}/orders/create/adhoc`,
             payload,
             { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }
         );
-
-        console.log('[Shiprocket] Response:', JSON.stringify(response.data, null, 2));
-
-        // Shiprocket returns IDs at root OR inside payload — handle both
-        const payload_data = response.data?.payload || response.data;
-        const order_id    = payload_data?.order_id    || response.data?.order_id;
-        const shipment_id = payload_data?.shipment_id || response.data?.shipment_id;
-        const awb_code    = payload_data?.awb_code    || response.data?.awb_code;
-
-        console.log('[Shiprocket] Parsed IDs → order_id:', order_id, '| shipment_id:', shipment_id);
-
-        // Save Shiprocket IDs back to DB
-        if (orderData._id) {
-            const fields = {};
-            if (order_id)    fields.shiprocket_order_id = String(order_id);
-            if (shipment_id) fields.shipmentId          = String(shipment_id);
-            if (awb_code)    fields.awbCode             = awb_code;
-            if (Object.keys(fields).length) {
-                await Order.findByIdAndUpdate(orderData._id, fields);
-                console.log('[Shiprocket] Saved IDs to DB:', fields);
-            }
-        }
-
-        // Auto-assign AWB (pass token to avoid a second auth round-trip)
-        if (shipment_id) {
-            await generateAWB(shipment_id, token);
-        }
-
-        // Return a normalised object so callers always get order_id at root
-        return { ...response.data, order_id, shipment_id, awb_code };
-
-    } catch (error) {
-        const detail = error.response?.data || error.message;
-        console.error('[Shiprocket] Order Error (full):', JSON.stringify(detail, null, 2));
-        console.error('[Shiprocket] HTTP status:', error.response?.status);
-        console.error('[Shiprocket] Payload that was sent:', JSON.stringify(
-            // re-log just the top-level fields so we can see what Shiprocket got
-            Object.fromEntries(
-                Object.entries(error.config?.data ? JSON.parse(error.config.data) : {})
-                    .filter(([k]) => !['order_items'].includes(k))
-            ), null, 2
-        ));
-        throw new Error('Failed to post order to Shiprocket: ' + JSON.stringify(detail));
+    } catch (e) {
+        console.error('[SR] ❌ HTTP ERROR:', e.response?.status);
+        console.error('[SR] SR Body:', JSON.stringify(e.response?.data, null, 2));
+        console.error('[SR] Payload was:', JSON.stringify(payload, null, 2));
+        throw new Error('[SR] HTTP error: ' + JSON.stringify(e.response?.data || e.message));
     }
+
+    const data = srRes.data;
+    console.log('[SR] Raw response (HTTP', srRes.status, '):\n', JSON.stringify(data, null, 2));
+
+    // ── CRITICAL: Shiprocket returns HTTP 200 even on failure ─────────────────
+    // Failure looks like: { "status": 0, "message": "The order id has already been taken." }
+    // OR:                  { "status_code": 0, "message": "..." }
+    // Success looks like:  { "order_id": 12345, "shipment_id": 67890, ... }
+    if (data?.status === 0 || data?.status_code === 0) {
+        const errMsg = data?.message || data?.error || JSON.stringify(data);
+        console.error('[SR] ❌ SR returned HTTP 200 but status=0:', errMsg);
+        console.error('[SR] Payload was:', JSON.stringify(payload, null, 2));
+        throw new Error('[SR] Rejected by Shiprocket: ' + errMsg);
+    }
+
+    // Extract IDs — SR sometimes nests under payload
+    const p           = data?.payload || data;
+    const order_id    = p?.order_id    ?? data?.order_id;
+    const shipment_id = p?.shipment_id ?? data?.shipment_id;
+    const awb_code    = p?.awb_code    ?? data?.awb_code;
+
+    if (!order_id) {
+        console.error('[SR] ❌ No order_id in response — full data:', JSON.stringify(data, null, 2));
+        throw new Error('[SR] No order_id returned. Full response: ' + JSON.stringify(data));
+    }
+
+    console.log(`[SR] ✅ Created — order_id=${order_id} | shipment_id=${shipment_id}`);
+
+    // Persist SR IDs to DB
+    if (orderData._id) {
+        const update = {};
+        if (order_id)    update.shiprocket_order_id = String(order_id);
+        if (shipment_id) update.shipmentId           = String(shipment_id);
+        if (awb_code)    update.awbCode              = awb_code;
+        if (Object.keys(update).length) {
+            await Order.findByIdAndUpdate(orderData._id, update);
+            console.log('[SR] Saved IDs to DB:', update);
+        }
+    }
+
+    // Auto-assign AWB (non-fatal)
+    if (shipment_id) {
+        generateAWB(shipment_id, token).catch(e =>
+            console.error('[SR] AWB non-fatal:', e.message)
+        );
+    }
+
+    return { ...data, order_id, shipment_id, awb_code };
+};
+
+// ─── Re-push existing DB order ────────────────────────────────────────────────
+const repushOrderById = async (dbOrderId) => {
+    const order = await Order.findById(dbOrderId);
+    if (!order) throw new Error('Order not found: ' + dbOrderId);
+
+    // Generate a NEW unique order_id for the repush
+    // (SR rejects duplicate order_ids)
+    const repushOrderId = order.orderId + '-R' + Date.now();
+    console.log('[SR repush] Using order_id:', repushOrderId);
+
+    return postOrderToShiprocket({
+        _id:             order._id,
+        orderId:         repushOrderId,
+        orderDate:       order.orderDate,
+        orderItems:      order.orderItems,
+        shippingAddress: order.shippingAddress,
+        paymentMethod:   order.paymentMethod,
+        totalAmount:     order.totalAmount,
+        email:           order.email,
+    });
 };
 
 // ─── Generate AWB ─────────────────────────────────────────────────────────────
-
 const generateAWB = async (shipmentId, existingToken = null) => {
-    try {
-        const token = existingToken || await authenticateShiprocket();
-        const response = await axios.post(
-            `${shiprocketConfig.baseURL}/courier/assign/awb`,
-            { shipment_id: shipmentId, courier_id: null },
-            { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }
-        );
-        if (response.data.status_code === 1) {
-            console.log('[Shiprocket] AWB Generated:', response.data.response?.data?.awb_code);
-            console.log('[Shiprocket] Courier:', response.data.response?.data?.courier_company);
-        } else {
-            console.error('[Shiprocket] AWB failed:', JSON.stringify(response.data, null, 2));
-        }
-        return response.data;
-    } catch (error) {
-        // Non-fatal — order is still visible in Shiprocket dashboard without AWB
-        console.error('[Shiprocket] AWB Error:', JSON.stringify(error.response?.data || error.message, null, 2));
+    const token = existingToken || await getToken();
+    const res = await axios.post(
+        `${BASE}/courier/assign/awb`,
+        { shipment_id: String(shipmentId), courier_id: null },
+        { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }
+    );
+    if (res.data?.status_code === 1) {
+        console.log('[SR] AWB:', res.data.response?.data?.awb_code,
+                    '| Courier:', res.data.response?.data?.courier_company);
+    } else {
+        console.error('[SR] AWB failed:', JSON.stringify(res.data, null, 2));
     }
+    return res.data;
 };
 
-// ─── Fetch Order Status ───────────────────────────────────────────────────────
-
+// ─── Track ────────────────────────────────────────────────────────────────────
 const fetchShiprocketOrderStatus = async (shipmentId) => {
-    try {
-        const token = await authenticateShiprocket();
-        const response = await axios.get(
-            `${shiprocketConfig.baseURL}/courier/track/shipment/${shipmentId}`,
-            { headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' } }
-        );
-        if (response.data?.status_code === 1) return response.data.tracking_data;
-        throw new Error(response.data.message || 'Failed to fetch order status');
-    } catch (error) {
-        console.error('[Shiprocket] Status Error:', JSON.stringify(error.response?.data || error.message, null, 2));
-        throw error;
-    }
+    const token = await getToken();
+    const res = await axios.get(
+        `${BASE}/courier/track/shipment/${shipmentId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+    );
+    if (res.data?.status_code === 1) return res.data.tracking_data;
+    throw new Error(res.data?.message || 'Failed to fetch status');
 };
 
-// ─── Cancel Order ─────────────────────────────────────────────────────────────
-
+// ─── Cancel ───────────────────────────────────────────────────────────────────
 const cancelOrderInShiprocket = async ({ orderId, shiprocket_order_id }) => {
-    try {
-        const token = await authenticateShiprocket();
-        if (!shiprocket_order_id) throw new Error('shiprocket_order_id is required');
-        const response = await axios.post(
-            `${shiprocketConfig.baseURL}/orders/cancel`,
-            { ids: [shiprocket_order_id] },
-            { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }
-        );
-        console.log('[Shiprocket] Cancelled order:', shiprocket_order_id);
-        return response.data;
-    } catch (error) {
-        console.error('[Shiprocket] Cancel Error:', JSON.stringify(error.response?.data || error.message, null, 2));
-        throw error;
-    }
+    if (!shiprocket_order_id) throw new Error('shiprocket_order_id is required to cancel');
+    const token = await getToken();
+    const res = await axios.post(
+        `${BASE}/orders/cancel`,
+        { ids: [Number(shiprocket_order_id)] },
+        { headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` } }
+    );
+    console.log('[SR] Cancelled:', shiprocket_order_id);
+    return res.data;
 };
 
 module.exports = {
     postOrderToShiprocket,
+    repushOrderById,
     cancelOrderInShiprocket,
     generateAWB,
     fetchShiprocketOrderStatus,

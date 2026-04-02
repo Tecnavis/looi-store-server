@@ -121,9 +121,12 @@ router.delete('/delete-order/:orderId',orderController.deleteOrderById);
 
 router.put('/mark-as-delivered/:orderId',orderController.markOrderAsDelivered);
 
+// Admin: re-push any saved order to Shiprocket (use when SR push failed on creation)
+router.post('/repush-shiprocket/:orderId', orderController.repushToShiprocket);
+
 router.get('/user/orders', jwtMiddleware, orderController.getOrdersByUser);
 
 router.get('/invoice/:orderId',jwtMiddleware,invoiceController.generateInvoice);
 
 
-module.exports=router; 
+module.exports=router;
