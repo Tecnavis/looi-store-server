@@ -1,17 +1,18 @@
-// shiprocketService.js
+// utils/shiprocketService.js
 const axios = require('axios');
 const shiprocketConfig = require('../config/shiprocketConfig');
 const Order = require('../models/orderModel');
 
-// ─── Helpers ─────────────────────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
 /**
- * Shiprocket requires date as "YYYY-MM-DD HH:MM" — NOT an ISO string
+ * Shiprocket requires date as "YYYY-MM-DD HH:MM"
+ * It REJECTS ISO strings like "2026-04-02T10:30:00.000Z"
  */
 const formatShiprocketDate = (date) => {
     const d = new Date(date);
     const pad = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 };
 
 // ─── Authenticate ─────────────────────────────────────────────────────────────
@@ -35,7 +36,7 @@ const postOrderToShiprocket = async (orderData) => {
     try {
         const token = await authenticateShiprocket();
 
-        // order_items — NO nested dimensions object
+        // order_items — flat, NO nested dimensions object
         const orderItems = orderData.orderItems.map(item => ({
             name:          item.productName,
             sku:           item.sku || `SKU-${Date.now()}`,
@@ -50,9 +51,9 @@ const postOrderToShiprocket = async (orderData) => {
 
         const payload = {
             order_id:              orderData.orderId,
-            order_date:            formatShiprocketDate(orderData.orderDate),  // ✅ correct format
-            pickup_location:       shiprocketConfig.pickupLocation,            // ✅ "work"
-            channel_id:            shiprocketConfig.channelId,                 // ✅ 5486974
+            order_date:            formatShiprocketDate(orderData.orderDate), // ✅ correct format
+            pickup_location:       shiprocketConfig.pickupLocation,           // ✅ "work"
+            channel_id:            shiprocketConfig.channelId,                // ✅ 5486974
 
             billing_customer_name: orderData.shippingAddress.firstName,
             billing_last_name:     orderData.shippingAddress.lastName  || '',
@@ -68,7 +69,7 @@ const postOrderToShiprocket = async (orderData) => {
 
             shipping_is_billing:   true,
 
-            order_items:           orderItems,
+            order_items:           orderItems, // ✅ no nested dimensions
 
             payment_method:        orderData.paymentMethod === 'COD' ? 'COD' : 'Prepaid',
             shipping_charges:      0,
@@ -77,7 +78,7 @@ const postOrderToShiprocket = async (orderData) => {
             total_discount:        0,
             sub_total:             Number(orderData.totalAmount),
 
-            // Package dimensions at ORDER root (not inside order_items)
+            // Package dimensions at ORDER root level (correct placement)
             length:                firstItem.length || 10,
             breadth:               firstItem.width  || 10,
             height:                firstItem.height || 10,
@@ -94,7 +95,7 @@ const postOrderToShiprocket = async (orderData) => {
 
         console.log('[Shiprocket] Response:', JSON.stringify(response.data, null, 2));
 
-        // Save IDs back to DB
+        // Save Shiprocket IDs back to DB
         const { order_id, shipment_id, awb_code } = response.data;
         if (orderData._id) {
             const fields = {};
@@ -103,10 +104,11 @@ const postOrderToShiprocket = async (orderData) => {
             if (awb_code)    fields.awbCode             = awb_code;
             if (Object.keys(fields).length) {
                 await Order.findByIdAndUpdate(orderData._id, fields);
-                console.log('[Shiprocket] Saved to DB:', fields);
+                console.log('[Shiprocket] Saved IDs to DB:', fields);
             }
         }
 
+        // Auto-assign AWB
         if (shipment_id) {
             await generateAWB(shipment_id);
         }
@@ -131,12 +133,13 @@ const generateAWB = async (shipmentId) => {
         );
         if (response.data.status_code === 1) {
             console.log('[Shiprocket] AWB Generated:', response.data.response?.data?.awb_code);
+            console.log('[Shiprocket] Courier:', response.data.response?.data?.courier_company);
         } else {
             console.error('[Shiprocket] AWB failed:', JSON.stringify(response.data, null, 2));
         }
         return response.data;
     } catch (error) {
-        // Non-fatal — order is visible in Shiprocket even without AWB
+        // Non-fatal — order is still visible in Shiprocket dashboard without AWB
         console.error('[Shiprocket] AWB Error:', JSON.stringify(error.response?.data || error.message, null, 2));
     }
 };
@@ -177,4 +180,9 @@ const cancelOrderInShiprocket = async ({ orderId, shiprocket_order_id }) => {
     }
 };
 
-module.exports = { postOrderToShiprocket, cancelOrderInShiprocket, generateAWB, fetchShiprocketOrderStatus };
+module.exports = {
+    postOrderToShiprocket,
+    cancelOrderInShiprocket,
+    generateAWB,
+    fetchShiprocketOrderStatus,
+};
