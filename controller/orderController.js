@@ -9,57 +9,186 @@ const { postOrderToShiprocket, cancelOrderInShiprocket } = require('../utils/shi
 const generateOrderId = () => `ORD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
 
 exports.createOrder = async (req, res) => {
+    console.log('=== /postOrder called ===');
+    console.log('BODY keys:', Object.keys(req.body || {}));
+    console.log('user:', req.body?.user);
+    console.log('totalAmount:', req.body?.totalAmount, '| type:', typeof req.body?.totalAmount);
+    console.log('paymentMethod:', req.body?.paymentMethod);
+    console.log('orderItems count:', Array.isArray(req.body?.orderItems) ? req.body.orderItems.length : 'NOT ARRAY');
+    if (Array.isArray(req.body?.orderItems) && req.body.orderItems[0]) {
+        const first = req.body.orderItems[0];
+        console.log('first item:', JSON.stringify({ productName: first.productName, quantity: first.quantity, price: first.price }));
+    }
+
     try {
         const {
-            user, orderItems, shippingAddress,
-            paymentMethod, totalAmount, email, skipShipping
+            user, orderItems, shippingAddress, paymentMethod,
+            paymentStatus, totalAmount, razorpayOrderId,
+            razorpayPaymentId, email, skipShipping
         } = req.body;
 
-        const orderData = {
-            orderId: `ORD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
-            user,
-            orderItems,
-            shippingAddress,
-            paymentMethod,
-            totalAmount,
-            email,
-            orderStatus: 'Pending',
-            orderDate: new Date()
-        };
+        // Validate required fields
+        const missing = [];
+        if (!user)            missing.push('user');
+        if (!orderItems)      missing.push('orderItems');
+        if (!shippingAddress) missing.push('shippingAddress');
+        if (!paymentMethod)   missing.push('paymentMethod');
+        if (!totalAmount)     missing.push('totalAmount');
 
-        const order = await Order.create(orderData);
-
-        // 🔥 SHIPROCKET FIXED BLOCK
-        if (!skipShipping) {
-            try {
-                console.log("🚀 Sending order to Shiprocket...");
-
-                const sr = await postOrderToShiprocket({
-                    ...orderData,
-                    _id: order._id
-                });
-
-                console.log("✅ Shiprocket Response:", sr);
-
-                await Order.findByIdAndUpdate(order._id, {
-                    shipmentId: sr.shipment_id,
-                    awbCode: sr.awb_code
-                });
-
-            } catch (e) {
-                console.error("❌ Shiprocket ERROR:", e.message);
-                console.error("❌ Response:", e.response?.data);
-            }
+        if (missing.length > 0) {
+            console.log('MISSING FIELDS:', missing);
+            return res.status(400).json({ success: false, message: `Missing required fields: ${missing.join(', ')}` });
+        }
+        if (!Array.isArray(orderItems) || orderItems.length === 0) {
+            return res.status(400).json({ success: false, message: 'orderItems must be a non-empty array' });
         }
 
-        res.status(200).json({
-            success: true,
-            order
-        });
+        // Enrich order items
+        const enrichedOrderItems = [];
+        for (let item of orderItems) {
+            if (!item.productName || !item.quantity || !item.price) {
+                console.log('BAD ITEM:', JSON.stringify(item));
+                return res.status(400).json({
+                    success: false,
+                    message: `Item missing productName/quantity/price: ${item.productName || 'unknown'}`
+                });
+            }
+
+            let product = null;
+            const lookupId = item.productId || item.product;
+            if (lookupId) {
+                try { product = await Product.findById(lookupId); } catch (e) { /* ignore bad id */ }
+            }
+            if (!product && item.productName) {
+                try {
+                    product = await Product.findOne({
+                        name: { $regex: new RegExp('^' + item.productName.trim().replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$', 'i') }
+                    });
+                } catch (e) { /* ignore */ }
+            }
+
+            // FIX: SKU guaranteed non-empty for Shiprocket
+            const safeSku = item.sku || product?.sku ||
+                `SKU-${item.productName.replace(/\s+/g, '-').toUpperCase().substring(0, 20)}`;
+
+            enrichedOrderItems.push({
+                productId:   product ? product._id : (lookupId || null),
+                productName: item.productName,
+                quantity:    Number(item.quantity),
+                price:       Number(item.price),
+                color:       item.color   || '',
+                size:        item.size    || '',
+                hsn:         item.hsn     || product?.hsn    || '',
+                sku:         safeSku,
+                length:      item.length  || product?.length || 10,
+                width:       item.width   || product?.width  || 10,
+                height:      item.height  || product?.height || 10,
+                weight:      item.weight  || product?.weight || 0.5,
+                coverImage:  product?.coverImage || '',
+            });
+        }
+
+        // Build order
+        const orderData = {
+            orderId:           generateOrderId(),
+            user,
+            orderItems:        enrichedOrderItems,
+            shippingAddress,
+            paymentMethod,
+            paymentStatus:     paymentStatus || 'Pending',
+            totalAmount:       Number(totalAmount),
+            razorpayOrderId:   razorpayOrderId  || undefined,
+            razorpayPaymentId: razorpayPaymentId || undefined,
+            email:             email || '',
+            orderStatus:       'Pending',
+            orderDate:         new Date()
+        };
+
+        console.log('Saving order with orderId:', orderData.orderId, '| amount:', orderData.totalAmount);
+
+        // STEP 1: Save to DB
+        const order = await Order.create(orderData);
+        console.log('Order saved! _id:', order._id);
+
+        // STEP 2: Deduct stock (non-fatal)
+        for (let item of enrichedOrderItems) {
+            if (!item.productId || !item.size || !item.color) continue;
+            try {
+                const product = await Product.findById(item.productId);
+                if (!product) continue;
+                const sizeObj  = product.sizes?.find(s => s.size === item.size);
+                const colorObj = sizeObj?.colors?.find(c => c.color === item.color);
+                if (colorObj) {
+                    colorObj.stock = Math.max(0, colorObj.stock - item.quantity);
+                    await product.save();
+                }
+            } catch (e) { console.error('Stock error (non-fatal):', e.message); }
+        }
+
+        // STEP 3: Link to user (non-fatal)
+        try {
+            await User.findByIdAndUpdate(user, { $push: { orders: order._id } }, { new: true });
+        } catch (e) { console.error('User link error (non-fatal):', e.message); }
+
+        // STEP 4: Send email (non-fatal)
+        const recipientEmail = email || order.email;
+        if (recipientEmail && typeof recipientEmail === 'string' && recipientEmail.includes('@')) {
+            const html = enrichedOrderItems.map(item =>
+                `<li>${item.productName} × ${item.quantity} — ₹${item.price * item.quantity} (${item.size || ''} ${item.color || ''})</li>`
+            ).join('');
+            sendEmail(
+                recipientEmail,
+                'Order Confirmation — LOOI Store',
+                `Order #${order.orderId} placed successfully.`,
+                `<p>Thank you! Order ID: <strong>${order.orderId}</strong></p><ul>${html}</ul><p>Total: ₹${order.totalAmount}</p>`
+            ).catch(e => console.error('Email error (non-fatal):', e.message));
+        }
+
+        // STEP 5: Shiprocket (non-fatal — NEVER blocks order response)
+        if (!skipShipping) {
+    try {
+        console.log("🚀 Sending order to Shiprocket...");
+
+        const sr = await postOrderToShiprocket({ ...orderData, _id: order._id });
+
+        console.log("✅ Shiprocket Response:", sr);
+
+        if (sr?.order_id) {
+            await Order.findByIdAndUpdate(order._id, {
+                shiprocket_order_id: sr.order_id
+            });
+        }
+
+    } catch (e) {
+        console.error("❌ Shiprocket ERROR:", e.message);
+        console.error("❌ Full Response:", JSON.stringify(e.response?.data, null, 2));
+    }
+}
+                    if (sr?.order_id) {
+                        await Order.findByIdAndUpdate(order._id, { shiprocket_order_id: sr.order_id });
+                        console.log('Shiprocket order_id saved:', sr.order_id);
+                    }
+                } catch (e) {
+                    // FIX: log full response data so you can diagnose Shiprocket rejections
+                    console.error('Shiprocket background error (order already saved):', e.message);
+                    console.error('Shiprocket response data:', JSON.stringify(e.response?.data, null, 2));
+                }
+            });
+        }
+
+        console.log('Returning success for order:', order._id);
+        return res.status(200).json({ success: true, message: 'Order created successfully', order });
 
     } catch (error) {
-        console.error("❌ Order Error:", error.message);
-        res.status(500).json({ message: error.message });
+        console.error('=== createOrder FATAL ERROR ===');
+        console.error('Error name:', error.name);
+        console.error('Error message:', error.message);
+        if (error.name === 'ValidationError') {
+            const fields = Object.keys(error.errors).map(f => `${f}: ${error.errors[f].message}`).join('; ');
+            console.error('Validation fields:', fields);
+            return res.status(500).json({ success: false, message: 'Validation failed — ' + fields, error: error.message });
+        }
+        return res.status(500).json({ success: false, message: 'Failed to create order: ' + error.message, error: error.message });
     }
 };
 
