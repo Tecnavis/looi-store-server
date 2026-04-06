@@ -105,7 +105,8 @@ exports.updateProduct = asyncHandler(async (req, res) => {
   let {
     name, price, sizes: sizesJson, description,
     countryOfOrigin, manufacturer, packedBy, commodity,
-    maincategory, subcategory
+    maincategory, subcategory,
+    length, width, height, weight
   } = req.body;
 
   try {
@@ -185,7 +186,11 @@ exports.updateProduct = asyncHandler(async (req, res) => {
       ...(packedBy && { packedBy }),
       ...(commodity && { commodity }),
       ...(maincategory && { maincategory }),
-      ...(subcategoryId && { subcategory: subcategoryId })
+      ...(subcategoryId && { subcategory: subcategoryId }),
+      ...(length !== undefined && length !== '' && { length: Number(length) }),
+      ...(width !== undefined && width !== '' && { width: Number(width) }),
+      ...(height !== undefined && height !== '' && { height: Number(height) }),
+      ...(weight !== undefined && weight !== '' && { weight: Number(weight) }),
     };
 
     console.log('Update fields:', updateFields);
