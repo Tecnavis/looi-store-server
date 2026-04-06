@@ -25,10 +25,15 @@ passport.use(
         let user = await User.findOne({ email });
 
         if (!user) {
+          // ✅ FIX: provide all required fields (username, fullName, password)
+          const baseUsername = email.split("@")[0].replace(/[^a-zA-Z0-9_]/g, "");
+          const uniqueUsername = baseUsername + "_" + Date.now();
+
           user = await User.create({
-            name: profile.displayName || "Google User",
+            fullName: profile.displayName || "Google User",
+            username: uniqueUsername,
             email,
-            password: "google_auth",
+            password: "google_auth_" + Date.now(), // placeholder, not used for login
           });
         }
 
