@@ -4,6 +4,8 @@ const Product = require('../models/productModel');
 const asyncHandler = require('express-async-handler');
 const OrderCount = require('../models/orderCountModel');
 const sendEmail = require('../utils/emailService');
+const NotificationSettings = require('../models/notificationSettingsModel');
+const { getCustomerOrderConfirmationHtml, getAdminNewOrderHtml } = require('../utils/emailTemplates');
 const { postOrderToShiprocket, cancelOrderInShiprocket, repushOrderById } = require('../utils/shiprocketService');
 
 const generateOrderId = () => `ORD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
@@ -112,16 +114,42 @@ exports.createOrder = async (req, res) => {
             await User.findByIdAndUpdate(user, { $push: { orders: order._id } }, { new: true });
         } catch (e) { console.error('User link (non-fatal):', e.message); }
 
-        // ── Send email (non-fatal) ────────────────────────────────────────────
+        // ── Send customer confirmation email (non-fatal) ──────────────────────
         const recipientEmail = email || order.email;
         if (recipientEmail?.includes('@')) {
-            const html = enrichedOrderItems.map(item =>
-                `<li>${item.productName} × ${item.quantity} — ₹${item.price * item.quantity}</li>`
-            ).join('');
-            sendEmail(recipientEmail, 'Order Confirmation — LOOI Store',
-                `Order #${order.orderId} placed.`,
-                `<p>Order ID: <strong>${order.orderId}</strong></p><ul>${html}</ul><p>Total: ₹${order.totalAmount}</p>`
-            ).catch(e => console.error('Email (non-fatal):', e.message));
+            const customerHtml = getCustomerOrderConfirmationHtml({
+                ...orderData,
+                _id: order._id,
+                orderItems: enrichedOrderItems
+            });
+            sendEmail(
+                recipientEmail,
+                `Order Confirmed ✓ — LOOI Store (#${order.orderId})`,
+                `Your order #${order.orderId} has been placed. Total: ₹${order.totalAmount}`,
+                customerHtml
+            ).catch(e => console.error('Customer email (non-fatal):', e.message));
+        }
+
+        // ── Send admin notification emails (non-fatal) ────────────────────────
+        try {
+            const notifSettings = await NotificationSettings.findOne();
+            if (notifSettings && notifSettings.notifyOnNewOrder && notifSettings.adminEmails.length > 0) {
+                const adminHtml = getAdminNewOrderHtml({
+                    ...orderData,
+                    _id: order._id,
+                    orderItems: enrichedOrderItems
+                });
+                for (const adminEmail of notifSettings.adminEmails) {
+                    sendEmail(
+                        adminEmail,
+                        `🛒 New Order #${order.orderId} — ₹${order.totalAmount}`,
+                        `New order #${order.orderId} placed. Total: ₹${order.totalAmount}. Customer: ${recipientEmail || 'N/A'}`,
+                        adminHtml
+                    ).catch(e => console.error(`Admin notify email (non-fatal) to ${adminEmail}:`, e.message));
+                }
+            }
+        } catch (notifErr) {
+            console.error('Admin notification (non-fatal):', notifErr.message);
         }
 
         // ── Shiprocket push (AWAITED so errors surface) ───────────────────────

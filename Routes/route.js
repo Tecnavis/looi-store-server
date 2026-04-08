@@ -128,6 +128,11 @@ router.get('/user/orders', jwtMiddleware, orderController.getOrdersByUser);
 
 router.get('/invoice/:orderId',jwtMiddleware,invoiceController.generateInvoice);
 
+// notification settings
+const notificationSettingsController = require('../controller/notificationSettingsController');
+router.get('/notification-settings', jwtMiddleware, notificationSettingsController.getSettings);
+router.put('/notification-settings', jwtMiddleware, notificationSettingsController.updateSettings);
+
 
 module.exports=router; 
 // ── TEMP DEBUG: mirrors testshiprocket.js exactly, call GET /api/test-shiprocket
