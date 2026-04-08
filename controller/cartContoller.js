@@ -105,14 +105,14 @@ const asyncHandler = require('express-async-handler');
 
 exports.addToCart = async (req, res) => {
   try {
-    const { size, color, quantity } = req.body;
+    const { size, color = '', quantity } = req.body;
     const productId = req.params.productId;
     const userId = req.user._id;
 
-    // Validate required fields (color is optional)
+    // Validate only truly required fields
     if (!productId || !size || !quantity) {
-      return res.status(400).json({ 
-        message: 'ProductId, size, and quantity are required' 
+      return res.status(400).json({
+        message: 'ProductId, size, and quantity are required'
       });
     }
 
@@ -122,92 +122,65 @@ exports.addToCart = async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    // Convert Mongoose doc to plain object so .length etc. work correctly
-    const productObj = product.toObject();
-    const hsn    = productObj.hsn    || '';
-    const sku    = productObj.sku    || '';
-    const length = productObj.length || 0;
-    const width  = productObj.width  || 0;
-    const height = productObj.height || 0;
-    const weight = productObj.weight || 0;
+    // Use toObject() so reserved JS properties like .length work correctly
+    const p = product.toObject();
 
-    // Find user's cart
+    // Find user's cart (create if not exists)
     let cart = await Cart.findOne({ user: userId });
     if (!cart) {
-      cart = new Cart({
-        user: userId,
-        items: []
-      });
+      cart = new Cart({ user: userId, items: [] });
     }
 
-    // Update existing items to ensure they all have coverImage
-    const updatedItems = await Promise.all(cart.items.map(async (item) => {
-      if (!item.coverImage) {
-        const itemProduct = await Product.findById(item.product);
-        if (itemProduct && itemProduct.coverImage) {
-          item.coverImage = itemProduct.coverImage;
-        }
-      }
-      return item;
-    }));
-    cart.items = updatedItems;
-
-    // Prepare the new item data
+    // Prepare new item — all optional fields have safe fallbacks
     const itemData = {
-      product: productId,
-      productId,
-      productName: product.name,
-      coverImage: product.coverImage,
-      size,
-      color,
-      quantity,
-      price: product.price,
-      hsn,
-      sku,
-      length,
-      width,
-      height,
-      weight
+      product:     productId,
+      productId:   String(p._id),
+      productName: p.name        || '',
+      coverImage:  p.coverImage  || '',
+      size:        size.trim().toUpperCase(),
+      color:       color         || '',
+      quantity:    Number(quantity),
+      price:       p.price       || 0,
+      hsn:         p.hsn         || '',
+      sku:         p.sku         || '',
+      length:      p.length      || 0,
+      width:       p.width       || 0,
+      height:      p.height      || 0,
+      weight:      p.weight      || 0,
     };
 
-    // Check if item exists in cart
-    const existingItemIndex = cart.items.findIndex(item =>
+    // If item already in cart (same product + size + color) → increment qty
+    const existingIndex = cart.items.findIndex(item =>
       item.product.toString() === productId &&
-      item.size === size &&
-      item.color === color
+      item.size === itemData.size &&
+      item.color === itemData.color
     );
 
-    if (existingItemIndex >= 0) {
-      cart.items[existingItemIndex].quantity += quantity;
+    if (existingIndex >= 0) {
+      cart.items[existingIndex].quantity += itemData.quantity;
     } else {
       cart.items.push(itemData);
     }
 
-    // Calculate total price
-    cart.totalPrice = cart.items.reduce((total, item) => {
-      return total + (item.price * item.quantity);
-    }, 0);
-
-    // Save the updated cart
     const savedCart = await cart.save();
-    
+
     res.status(200).json({
       message: 'Product added to cart successfully',
       cart: await savedCart.populate('items.product')
     });
 
   } catch (error) {
-    console.error('Cart Error:', error);
+    console.error('addToCart error:', error);
     if (error.name === 'ValidationError') {
-      return res.status(400).json({ 
-        message: 'Validation error', 
-        errors: error.errors 
-      });
+      const fieldErrors = Object.keys(error.errors).map(f => ({
+        field: f,
+        message: error.errors[f].message,
+        value: error.errors[f].value,
+      }));
+      console.error('Failing fields:', fieldErrors);
+      return res.status(400).json({ message: 'Validation error', fieldErrors });
     }
-    res.status(500).json({ 
-      message: 'Error adding to cart', 
-      error: error.message 
-    });
+    res.status(500).json({ message: 'Error adding to cart', error: error.message });
   }
 };
 

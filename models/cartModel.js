@@ -4,28 +4,30 @@ const mongoose = require('mongoose');
 const cartSchema = new mongoose.Schema({
   user: {
     type: mongoose.Schema.Types.ObjectId,
-    ref: 'user', // Reference to the User model
+    ref: 'user',
     required: true
   },
   items: [{
     product: {
       type: mongoose.Schema.Types.ObjectId,
-      ref: 'Product', // Reference to the Product model
+      ref: 'Product',
       required: true
     },
-    productId:{
-      type:String,
-      required:true
+    productId: {
+      type: String,
+      required: false,
+      default: ''
     },
     productName: {
-      type: String,  // Add the product name here
-      required: true
+      type: String,
+      required: false,
+      default: ''
     },
     coverImage: {
-      type: String, // Add the cover image URL field here
-      required: true
-      // default: 'default-product-image.jpg' 
-  },
+      type: String,
+      required: false,
+      default: ''
+    },
     size: {
       type: String,
       required: true
@@ -43,7 +45,7 @@ const cartSchema = new mongoose.Schema({
     },
     price: {
       type: Number,
-      required: true // Store the product price at the time of adding to cart
+      required: true
     },
     hsn: {
       type: String,
@@ -90,15 +92,10 @@ const cartSchema = new mongoose.Schema({
 // Calculate the total price before saving
 cartSchema.pre('save', function (next) {
   let totalPrice = 0;
-
-  // Sum up the price for each item in the cart
   this.items.forEach(item => {
-    totalPrice += item.price * item.quantity;
+    totalPrice += (item.price || 0) * (item.quantity || 1);
   });
-
-  // Set the totalPrice field
   this.totalPrice = totalPrice;
-
   next();
 });
 
