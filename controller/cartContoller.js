@@ -109,10 +109,10 @@ exports.addToCart = async (req, res) => {
     const productId = req.params.productId;
     const userId = req.user._id;
 
-    // Validate required fields
-    if (!productId || !size || !color || !quantity) {
+    // Validate required fields (color is optional)
+    if (!productId || !size || !quantity) {
       return res.status(400).json({ 
-        message: 'ProductId, size, color, and quantity are required' 
+        message: 'ProductId, size, and quantity are required' 
       });
     }
 
@@ -122,15 +122,14 @@ exports.addToCart = async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    // Destructure additional details from the product with safe fallbacks
-    const {
-      hsn = '',
-      sku = '',
-      length = 0,
-      width = 0,
-      height = 0,
-      weight = 0
-    } = product;
+    // Convert Mongoose doc to plain object so .length etc. work correctly
+    const productObj = product.toObject();
+    const hsn    = productObj.hsn    || '';
+    const sku    = productObj.sku    || '';
+    const length = productObj.length || 0;
+    const width  = productObj.width  || 0;
+    const height = productObj.height || 0;
+    const weight = productObj.weight || 0;
 
     // Find user's cart
     let cart = await Cart.findOne({ user: userId });
