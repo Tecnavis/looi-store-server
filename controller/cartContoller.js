@@ -109,73 +109,93 @@ exports.addToCart = async (req, res) => {
     const productId = req.params.productId;
     const userId = req.user._id;
 
-    // Validate only truly required fields
     if (!productId || !size || !quantity) {
-      return res.status(400).json({
-        message: 'ProductId, size, and quantity are required'
-      });
+      return res.status(400).json({ message: 'ProductId, size, and quantity are required' });
     }
 
-    // Find the product
     const product = await Product.findById(productId);
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    // Use toObject() so reserved JS properties like .length work correctly
+    // Use toObject() so .length and other reserved JS properties work correctly
     const p = product.toObject();
 
-    // Find user's cart (create if not exists)
-    let cart = await Cart.findOne({ user: userId });
-    if (!cart) {
-      cart = new Cart({ user: userId, items: [] });
-    }
+    const normalizedSize  = size.trim().toUpperCase();
+    const normalizedColor = (color || '').trim();
+    const qty             = Number(quantity) || 1;
 
-    // Prepare new item — all optional fields have safe fallbacks
     const itemData = {
       product:     productId,
       productId:   String(p._id),
-      productName: p.name        || '',
-      coverImage:  p.coverImage  || '',
-      size:        size.trim().toUpperCase(),
-      color:       color         || '',
-      quantity:    Number(quantity),
-      price:       p.price       || 0,
-      hsn:         p.hsn         || '',
-      sku:         p.sku         || '',
-      length:      p.length      || 0,
-      width:       p.width       || 0,
-      height:      p.height      || 0,
-      weight:      p.weight      || 0,
+      productName: p.name       || '',
+      coverImage:  p.coverImage || '',
+      size:        normalizedSize,
+      color:       normalizedColor,
+      quantity:    qty,
+      price:       Number(p.price)  || 0,
+      hsn:         p.hsn            || '',
+      sku:         p.sku            || '',
+      length:      Number(p.length) || 0,
+      width:       Number(p.width)  || 0,
+      height:      Number(p.height) || 0,
+      weight:      Number(p.weight) || 0,
     };
 
-    // If item already in cart (same product + size + color) → increment qty
-    const existingIndex = cart.items.findIndex(item =>
-      item.product.toString() === productId &&
-      item.size === itemData.size &&
-      item.color === itemData.color
-    );
+    // Use findOneAndUpdate to avoid Mongoose re-validating ALL existing cart items
+    // Check if this exact item (product+size+color) already exists
+    const cartWithItem = await Cart.findOne({
+      user: userId,
+      'items.product': productId,
+      'items.size':    normalizedSize,
+      'items.color':   normalizedColor,
+    });
 
-    if (existingIndex >= 0) {
-      cart.items[existingIndex].quantity += itemData.quantity;
+    let savedCart;
+
+    if (cartWithItem) {
+      // Item exists → increment quantity using atomic update (no full re-validation)
+      savedCart = await Cart.findOneAndUpdate(
+        {
+          user: userId,
+          'items.product': productId,
+          'items.size':    normalizedSize,
+          'items.color':   normalizedColor,
+        },
+        { $inc: { 'items.$.quantity': qty } },
+        { new: true }
+      ).populate('items.product');
     } else {
-      cart.items.push(itemData);
+      // Item doesn't exist → push new item (upsert cart doc if needed)
+      savedCart = await Cart.findOneAndUpdate(
+        { user: userId },
+        {
+          $push: { items: itemData },
+          $setOnInsert: { user: userId, totalPrice: 0 },
+        },
+        { new: true, upsert: true }
+      ).populate('items.product');
     }
 
-    const savedCart = await cart.save();
+    // Recalculate totalPrice
+    if (savedCart) {
+      const total = savedCart.items.reduce((sum, item) => sum + (item.price || 0) * (item.quantity || 1), 0);
+      await Cart.findOneAndUpdate({ user: userId }, { $set: { totalPrice: total } });
+      savedCart.totalPrice = total;
+    }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: 'Product added to cart successfully',
-      cart: await savedCart.populate('items.product')
+      cart: savedCart,
     });
 
   } catch (error) {
     console.error('addToCart error:', error);
     if (error.name === 'ValidationError') {
       const fieldErrors = Object.keys(error.errors).map(f => ({
-        field: f,
+        field:   f,
         message: error.errors[f].message,
-        value: error.errors[f].value,
+        value:   error.errors[f].value,
       }));
       console.error('Failing fields:', fieldErrors);
       return res.status(400).json({ message: 'Validation error', fieldErrors });
