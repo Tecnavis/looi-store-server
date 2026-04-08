@@ -46,27 +46,33 @@ const cartSchema = new mongoose.Schema({
     },
     hsn: {
       type: String,
-      required: true
+      required: false,
+      default: ''
     },
     sku: {
       type: String,
-      required: true
+      required: false,
+      default: ''
     },
     length: {
       type: Number,
-      required: true
+      required: false,
+      default: 0
     },
     width: {
       type: Number,
-      required: true
+      required: false,
+      default: 0
     },
     height: {
       type: Number,
-      required: true
+      required: false,
+      default: 0
     },
     weight: {
       type: Number,
-      required: true
+      required: false,
+      default: 0
     }
   }],
   totalPrice: {
@@ -98,4 +104,3 @@ cartSchema.pre('save', function (next) {
 const Cart = mongoose.model('Cart', cartSchema);
 
 module.exports = Cart;
-

@@ -122,8 +122,15 @@ exports.addToCart = async (req, res) => {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    // Destructure additional details from the product
-    const { hsn, sku, length, width, height, weight } = product;
+    // Destructure additional details from the product with safe fallbacks
+    const {
+      hsn = '',
+      sku = '',
+      length = 0,
+      width = 0,
+      height = 0,
+      weight = 0
+    } = product;
 
     // Find user's cart
     let cart = await Cart.findOne({ user: userId });
@@ -211,7 +218,8 @@ exports.getCart = async (req, res) => {
     const userId = req.user._id;
     const cart = await Cart.findOne({ user: userId }).populate('items.product', 'name price coverImage');
     if (!cart) {
-      return res.status(404).json({ message: 'Cart not found' });
+      // Return empty cart instead of 404 to prevent client errors on first visit
+      return res.status(200).json({ cart: { items: [], totalPrice: 0 } });
     }
     res.status(200).json({ cart });
   } catch (error) {
@@ -407,6 +415,3 @@ exports.deleteCart = async (req, res) => {
     res.status(500).json({ message: 'Error removing product from cart', error: error.message });
   }
 };
-
-  
- 
