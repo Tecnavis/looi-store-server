@@ -407,3 +407,19 @@ exports.deleteCart = async (req, res) => {
     res.status(500).json({ message: 'Error removing product from cart', error: error.message });
   }
 };
+// Clear entire cart (called after order is placed)
+exports.clearCart = async (req, res) => {
+  try {
+    const userId = req.user._id;
+    const cart = await Cart.findOne({ user: userId });
+    if (!cart) {
+      return res.status(200).json({ message: 'Cart already empty' });
+    }
+    cart.items = [];
+    await cart.save();
+    res.status(200).json({ message: 'Cart cleared successfully' });
+  } catch (error) {
+    console.error('Error clearing cart:', error);
+    res.status(500).json({ message: 'Error clearing cart', error: error.message });
+  }
+};

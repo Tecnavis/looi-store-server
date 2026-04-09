@@ -80,6 +80,7 @@ router.post('/cart/:productId',jwtMiddleware,cartController.addToCart);
 router.get('/cart',jwtMiddleware,cartController.getCart);
 router.put('/cart/:productId',jwtMiddleware,cartController.updateCart);
 router.delete('/delete-cart/:productId',jwtMiddleware,cartController.deleteCart);
+router.delete('/clear-cart',jwtMiddleware,cartController.clearCart);
 
 // wishlist
 router.post('/add-wishlist/:productId',jwtMiddleware,wishlistController.addToWishlist);
