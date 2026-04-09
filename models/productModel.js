@@ -20,6 +20,11 @@ const productSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  taxRate: {
+    type: Number,
+    required: false,
+    default: 5,
+  },
   coverImage: {
     type: String,
     required: true,

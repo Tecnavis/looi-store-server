@@ -238,7 +238,8 @@ exports.getOrdersByUser = async (req, res) => {
         const orders = await Order.find({ user: userId })
             .populate({ path: 'orderItems.productId', model: 'Product', select: 'name price coverImage' })
             .populate({ path: 'user', model: 'user', select: 'name email' });
-        if (!orders?.length) return res.status(404).json({ success: false, message: 'No orders found' });
+        // ✅ FIX: Return 200 with empty array so client shows "No orders" instead of an error
+        if (!orders?.length) return res.status(200).json({ success: true, message: 'No orders found', orders: [] });
         res.status(200).json({ success: true, message: 'Orders retrieved', orders });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to fetch orders', error: error.message });
