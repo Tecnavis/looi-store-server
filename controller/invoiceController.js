@@ -3,11 +3,17 @@ const fs = require('fs');
 const path = require('path');
 const Order = require('../models/orderModel');
 
+// ── Asset paths ────────────────────────────────────────────────────────────────
+// Fonts — DejaVu Sans supports the ₹ (U+20B9) glyph unlike Helvetica/Times
+const FONT_REGULAR = path.join(__dirname, '..', 'assets', 'fonts', 'DejaVuSans.ttf');
+const FONT_BOLD    = path.join(__dirname, '..', 'assets', 'fonts', 'DejaVuSans-Bold.ttf');
+
+// Logo — LOOInew.png at server/assets/images/LOOInew.png
+const LOGO_PATH = path.join(__dirname, '..', 'assets', 'images', 'LOOInew.png');
+
 const ensureInvoiceDirectory = () => {
     const invoiceDir = path.join(__dirname, '..', 'invoices');
-    if (!fs.existsSync(invoiceDir)) {
-        fs.mkdirSync(invoiceDir, { recursive: true });
-    }
+    if (!fs.existsSync(invoiceDir)) fs.mkdirSync(invoiceDir, { recursive: true });
     return invoiceDir;
 };
 
@@ -16,130 +22,117 @@ exports.generateInvoice = async (req, res) => {
 
     try {
         const order = await Order.findById(orderId).populate('user');
+        if (!order) return res.status(404).json({ success: false, message: 'Order not found' });
 
-        if (!order) {
-            return res.status(404).json({ success: false, message: "Order not found" });
-        }
-
-        const invoiceDir = ensureInvoiceDirectory();
+        const invoiceDir  = ensureInvoiceDirectory();
         const invoicePath = path.join(invoiceDir, `invoice-${orderId}.pdf`);
 
-        // ✅ FIX: Set headers BEFORE piping to response
         res.setHeader('Content-Type', 'application/pdf');
         res.setHeader('Content-Disposition', `attachment; filename=invoice-${orderId}.pdf`);
 
-        const pdfDoc = new PDFDocument({ margin: 50 });
+        const pdfDoc = new PDFDocument({ margin: 50, size: 'A4' });
         const fileStream = fs.createWriteStream(invoicePath);
-
-        fileStream.on('error', (error) => {
-            console.error('Error writing invoice to file:', error);
-        });
-
+        fileStream.on('error', (err) => console.error('Error writing invoice file:', err));
         pdfDoc.pipe(fileStream);
         pdfDoc.pipe(res);
 
-        // ── HEADER ────────────────────────────────────────────────────────────
-        pdfDoc.fontSize(22).font('Helvetica-Bold').text('LOOI', 50, 50);
-        pdfDoc.fontSize(10).font('Helvetica').fillColor('#666666')
-            .text('www.looi.in  |  support@looi.in', 50, 75);
+        // ── Register fonts so ₹ (U+20B9) renders correctly ────────────────────
+        const hasFonts = fs.existsSync(FONT_REGULAR) && fs.existsSync(FONT_BOLD);
+        if (hasFonts) {
+            pdfDoc.registerFont('Regular', FONT_REGULAR);
+            pdfDoc.registerFont('Bold',    FONT_BOLD);
+        }
+        const reg  = () => pdfDoc.font(hasFonts ? 'Regular' : 'Helvetica');
+        const bold = () => pdfDoc.font(hasFonts ? 'Bold'    : 'Helvetica-Bold');
+        const Rs   = '\u20B9'; // ₹ — works with DejaVu, falls back to '?' with Helvetica
 
-        pdfDoc.fontSize(20).font('Helvetica-Bold').fillColor('#000000')
-            .text('TAX INVOICE', 0, 50, { align: 'right' });
-        pdfDoc.fontSize(10).font('Helvetica').fillColor('#444444')
-            .text(`Invoice No: ${order.orderId}`, 0, 75, { align: 'right' })
-            .text(`Date: ${new Date(order.orderDate || order.createdAt).toLocaleDateString('en-IN')}`, 0, 90, { align: 'right' });
+        // ── HEADER ─────────────────────────────────────────────────────────────
+        const logoY = 40;
+        if (fs.existsSync(LOGO_PATH)) {
+            pdfDoc.image(LOGO_PATH, 50, logoY, { height: 48, fit: [160, 48] });
+        } else {
+            bold(); pdfDoc.fontSize(24).fillColor('#000000').text('LOOI', 50, logoY + 8);
+        }
+        reg(); pdfDoc.fontSize(9).fillColor('#666666')
+            .text('www.looi.in  |  support@looi.in', 50, logoY + 54);
 
-        // Divider
+        bold(); pdfDoc.fontSize(20).fillColor('#000000').text('TAX INVOICE', 0, logoY, { align: 'right' });
+        reg(); pdfDoc.fontSize(10).fillColor('#444444')
+            .text(`Invoice No: ${order.orderId}`,                                              0, logoY + 28, { align: 'right' })
+            .text(`Date: ${new Date(order.orderDate || order.createdAt).toLocaleDateString('en-IN')}`, 0, logoY + 42, { align: 'right' });
+
         pdfDoc.moveTo(50, 115).lineTo(562, 115).lineWidth(1.5).strokeColor('#000000').stroke();
 
-        // ── BILL TO ───────────────────────────────────────────────────────────
+        // ── BILL TO ────────────────────────────────────────────────────────────
         const addr = order.shippingAddress || {};
-        pdfDoc.fontSize(9).font('Helvetica-Bold').fillColor('#888888')
-            .text('BILL TO / SHIP TO', 50, 130);
-        pdfDoc.fontSize(11).font('Helvetica-Bold').fillColor('#000000')
+        bold(); pdfDoc.fontSize(9).fillColor('#888888').text('BILL TO / SHIP TO', 50, 130);
+        bold(); pdfDoc.fontSize(11).fillColor('#000000')
             .text(`${addr.firstName || ''} ${addr.lastName || ''}`.trim(), 50, 145);
-        pdfDoc.fontSize(10).font('Helvetica').fillColor('#333333');
-        const addrLines = [
+        reg(); pdfDoc.fontSize(10).fillColor('#333333');
+        [
             addr.houseBuilding,
             addr.streetArea,
             addr.landmark,
             [addr.cityDistrict, addr.state].filter(Boolean).join(', '),
-            addr.postalCode ? `PIN: ${addr.postalCode}` : '',
-            addr.phoneNumber ? `Ph: ${addr.phoneNumber}` : '',
-        ].filter(Boolean);
-        addrLines.forEach((line, i) => {
-            pdfDoc.text(line, 50, 160 + (i * 14));
-        });
+            addr.postalCode  ? `PIN: ${addr.postalCode}`    : '',
+            addr.phoneNumber ? `Ph: ${addr.phoneNumber}`    : '',
+        ].filter(Boolean).forEach((line, i) => pdfDoc.text(line, 50, 160 + i * 14));
 
-        // Payment badge
         const payY = 130;
-        pdfDoc.fontSize(9).font('Helvetica-Bold').fillColor('#888888')
-            .text('PAYMENT', 380, payY);
-        pdfDoc.fontSize(10).font('Helvetica').fillColor('#000000')
-            .text(`Method: ${order.paymentMethod || 'N/A'}`, 380, payY + 15)
+        bold(); pdfDoc.fontSize(9).fillColor('#888888').text('PAYMENT', 380, payY);
+        reg(); pdfDoc.fontSize(10).fillColor('#000000')
+            .text(`Method: ${order.paymentMethod || 'N/A'}`,    380, payY + 15)
             .text(`Status: ${order.paymentStatus || 'Pending'}`, 380, payY + 30)
             .text(`Order Status: ${order.orderStatus || 'Pending'}`, 380, payY + 45);
 
-        // ── ITEMS TABLE ───────────────────────────────────────────────────────
+        // ── ITEMS TABLE ────────────────────────────────────────────────────────
         const tableTop = 265;
-        const colX = { sno: 50, name: 80, hsn: 295, qty: 345, unitPrice: 385, taxRate: 430, taxAmt: 472, total: 512 };
+        const col = { sno:50, name:80, hsn:295, qty:345, unit:385, rate:430, taxAmt:472, total:512 };
 
-        // Table header
         pdfDoc.rect(50, tableTop, 512, 18).fill('#1a1a1a');
-        pdfDoc.fontSize(8).font('Helvetica-Bold').fillColor('#ffffff');
-        pdfDoc.text('#',        colX.sno,      tableTop + 5, { width: 25,  align: 'center' });
-        pdfDoc.text('PRODUCT',  colX.name,     tableTop + 5, { width: 210, align: 'left'   });
-        pdfDoc.text('HSN',      colX.hsn,      tableTop + 5, { width: 45,  align: 'center' });
-        pdfDoc.text('QTY',      colX.qty,      tableTop + 5, { width: 35,  align: 'center' });
-        pdfDoc.text('UNIT',     colX.unitPrice,tableTop + 5, { width: 40,  align: 'right'  });
-        pdfDoc.text('GST%',     colX.taxRate,  tableTop + 5, { width: 38,  align: 'center' });
-        pdfDoc.text('GST AMT',  colX.taxAmt,   tableTop + 5, { width: 38,  align: 'right'  });
-        pdfDoc.text('TOTAL',    colX.total,    tableTop + 5, { width: 50,  align: 'right'  });
+        bold(); pdfDoc.fontSize(8).fillColor('#ffffff');
+        [
+            ['#',        col.sno,    25,  'center'],
+            ['PRODUCT',  col.name,  210,  'left'  ],
+            ['HSN',      col.hsn,    45,  'center'],
+            ['QTY',      col.qty,    35,  'center'],
+            ['UNIT',     col.unit,   40,  'right' ],
+            ['GST%',     col.rate,   38,  'center'],
+            ['GST AMT',  col.taxAmt, 38,  'right' ],
+            ['TOTAL',    col.total,  50,  'right' ],
+        ].forEach(([txt, x, w, align]) => pdfDoc.text(txt, x, tableTop + 5, { width: w, align }));
 
-        // Table rows
         let rowY = tableTop + 20;
         let subtotalExclTax = 0;
-        let totalTaxAmount = 0;
+        let totalTaxAmount  = 0;
 
         order.orderItems.forEach((item, i) => {
-            const qty = Number(item.quantity) || 1;
-            const lineTotal = Number(item.price) || 0;
-            const taxRate = Number(item.taxRate || 5); // default 5% GST
-            // price stored is inclusive of tax
+            const qty         = Number(item.quantity) || 1;
+            const lineTotal   = Number(item.price) || 0;
+            const taxRate     = Number(item.taxRate || 5);
             const unitExclTax = lineTotal / qty / (1 + taxRate / 100);
-            const unitTaxAmt  = (lineTotal / qty) - unitExclTax;
-            const lineTaxAmt  = unitTaxAmt * qty;
-            const lineExclTax = unitExclTax * qty;
+            const lineTaxAmt  = lineTotal - unitExclTax * qty;
+            subtotalExclTax  += unitExclTax * qty;
+            totalTaxAmount   += lineTaxAmt;
 
-            subtotalExclTax += lineExclTax;
-            totalTaxAmount  += lineTaxAmt;
-
-            const bg = i % 2 === 0 ? '#f9f9f9' : '#ffffff';
-            const rowH = 28;
-            pdfDoc.rect(50, rowY, 512, rowH).fill(bg);
-
-            pdfDoc.fontSize(9).font('Helvetica').fillColor('#000000');
-            pdfDoc.text(String(i + 1),               colX.sno,      rowY + 4, { width: 25,  align: 'center' });
-            pdfDoc.text(item.productName || 'N/A',    colX.name,     rowY + 4, { width: 210, align: 'left', ellipsis: true });
+            pdfDoc.rect(50, rowY, 512, 28).fill(i % 2 === 0 ? '#f9f9f9' : '#ffffff');
+            reg(); pdfDoc.fontSize(9).fillColor('#000000');
+            pdfDoc.text(String(i + 1),                  col.sno,    rowY + 4, { width: 25,  align: 'center' });
+            pdfDoc.text(item.productName || 'N/A',      col.name,   rowY + 4, { width: 210, align: 'left', ellipsis: true });
             const sizeColor = [item.size, item.color].filter(Boolean).join(' / ');
-            if (sizeColor) {
-                pdfDoc.fontSize(7.5).fillColor('#666666')
-                    .text(sizeColor, colX.name, rowY + 16, { width: 210 });
-            }
+            if (sizeColor) pdfDoc.fontSize(7.5).fillColor('#666666').text(sizeColor, col.name, rowY + 16, { width: 210 });
             pdfDoc.fontSize(9).fillColor('#000000');
-            pdfDoc.text(item.hsn || '—',              colX.hsn,      rowY + 4, { width: 45,  align: 'center' });
-            pdfDoc.text(String(qty),                   colX.qty,      rowY + 4, { width: 35,  align: 'center' });
-            pdfDoc.text(`₹${unitExclTax.toFixed(2)}`,  colX.unitPrice,rowY + 4, { width: 40,  align: 'right'  });
-            pdfDoc.text(`${taxRate}%`,                 colX.taxRate,  rowY + 4, { width: 38,  align: 'center' });
-            pdfDoc.text(`₹${lineTaxAmt.toFixed(2)}`,   colX.taxAmt,   rowY + 4, { width: 38,  align: 'right'  });
-            pdfDoc.text(`₹${lineTotal.toFixed(2)}`,    colX.total,    rowY + 4, { width: 50,  align: 'right'  });
-
-            // Row border
-            pdfDoc.moveTo(50, rowY + rowH).lineTo(562, rowY + rowH).lineWidth(0.5).strokeColor('#e0e0e0').stroke();
-            rowY += rowH;
+            pdfDoc.text(item.hsn || '—',                col.hsn,    rowY + 4, { width: 45,  align: 'center' });
+            pdfDoc.text(String(qty),                    col.qty,    rowY + 4, { width: 35,  align: 'center' });
+            pdfDoc.text(`${Rs}${unitExclTax.toFixed(2)}`,  col.unit,   rowY + 4, { width: 40,  align: 'right'  });
+            pdfDoc.text(`${taxRate}%`,                  col.rate,   rowY + 4, { width: 38,  align: 'center' });
+            pdfDoc.text(`${Rs}${lineTaxAmt.toFixed(2)}`,   col.taxAmt, rowY + 4, { width: 38,  align: 'right'  });
+            pdfDoc.text(`${Rs}${lineTotal.toFixed(2)}`,    col.total,  rowY + 4, { width: 50,  align: 'right'  });
+            pdfDoc.moveTo(50, rowY + 28).lineTo(562, rowY + 28).lineWidth(0.5).strokeColor('#e0e0e0').stroke();
+            rowY += 28;
         });
 
-        // ── TOTALS ────────────────────────────────────────────────────────────
+        // ── TOTALS ─────────────────────────────────────────────────────────────
         const grandTotal = Number(order.totalAmount);
         const cgst = totalTaxAmount / 2;
         const sgst = totalTaxAmount / 2;
@@ -148,33 +141,32 @@ exports.generateInvoice = async (req, res) => {
         pdfDoc.moveTo(360, rowY).lineTo(562, rowY).lineWidth(1).strokeColor('#cccccc').stroke();
         rowY += 8;
 
-        const addTotalRow = (label, value, bold = false) => {
-            if (bold) pdfDoc.font('Helvetica-Bold'); else pdfDoc.font('Helvetica');
+        const totRow = (label, value, isBold = false) => {
+            if (isBold) bold(); else reg();
             pdfDoc.fontSize(9).fillColor('#000000')
-                .text(label, 360, rowY, { width: 152, align: 'left' })
-                .text(value,  360, rowY, { width: 200, align: 'right' });
+                .text(label, 360, rowY, { width: 152, align: 'left'  })
+                .text(value, 360, rowY, { width: 200, align: 'right' });
             rowY += 16;
         };
-
-        addTotalRow('Subtotal (excl. tax):', `₹${subtotalExclTax.toFixed(2)}`);
-        addTotalRow(`CGST (2.5%):`,            `₹${cgst.toFixed(2)}`);
-        addTotalRow(`SGST (2.5%):`,            `₹${sgst.toFixed(2)}`);
+        totRow('Subtotal (excl. tax):', `${Rs}${subtotalExclTax.toFixed(2)}`);
+        totRow('CGST (2.5%):',          `${Rs}${cgst.toFixed(2)}`);
+        totRow('SGST (2.5%):',          `${Rs}${sgst.toFixed(2)}`);
         pdfDoc.moveTo(360, rowY).lineTo(562, rowY).lineWidth(1).strokeColor('#000000').stroke();
         rowY += 6;
-        addTotalRow('GRAND TOTAL:', `₹${grandTotal.toFixed(2)}`, true);
+        totRow('GRAND TOTAL:',           `${Rs}${grandTotal.toFixed(2)}`, true);
 
-        // ── FOOTER ────────────────────────────────────────────────────────────
+        // ── FOOTER ─────────────────────────────────────────────────────────────
         pdfDoc.moveTo(50, rowY + 20).lineTo(562, rowY + 20).lineWidth(1).strokeColor('#cccccc').stroke();
-        pdfDoc.fontSize(9).font('Helvetica').fillColor('#666666')
-            .text('This is a computer-generated invoice. No signature required.', 50, rowY + 30, { align: 'center', width: 512 })
-            .text('Thank you for shopping with LOOI!', 50, rowY + 44, { align: 'center', width: 512 });
+        reg(); pdfDoc.fontSize(9).fillColor('#666666')
+            .text('This is a computer-generated invoice. No signature required.',
+                50, rowY + 30, { align: 'center', width: 512 })
+            .text('Thank you for shopping with LOOI!',
+                50, rowY + 44, { align: 'center', width: 512 });
 
         pdfDoc.end();
 
     } catch (error) {
         console.error('Error generating invoice:', error);
-        if (!res.headersSent) {
-            res.status(500).json({ success: false, message: "Error generating invoice" });
-        }
+        if (!res.headersSent) res.status(500).json({ success: false, message: 'Error generating invoice' });
     }
 };
