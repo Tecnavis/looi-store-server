@@ -37,9 +37,16 @@ const fmtDate = (date) => {
 // ─── Build payload ────────────────────────────────────────────────────────────
 const buildPayload = (orderData) => {
     const addr = orderData.shippingAddress || {};
-    const phone = String(
-        addr.phoneNumber || addr.phone || addr.mobile || '0000000000'
-    ).replace(/\D/g, '').slice(-10) || '0000000000';
+
+    // ── Phone validation ──────────────────────────────────────────────────────
+    const rawPhone = addr.phoneNumber || addr.phone || addr.mobile || '';
+    const phone = String(rawPhone).replace(/\D/g, '').slice(-10);
+    if (!phone || phone.length !== 10) {
+        throw new Error(
+            `Invalid shipping phone number: "${rawPhone}". ` +
+            `shippingAddress received: ${JSON.stringify(addr)}`
+        );
+    }
 
     const orderItems = (orderData.orderItems || []).map((item, i) => ({
         name:          item.productName   || `Item ${i + 1}`,

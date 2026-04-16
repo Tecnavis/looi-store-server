@@ -38,6 +38,16 @@ exports.createOrder = async (req, res) => {
         if (!Array.isArray(orderItems) || orderItems.length === 0)
             return res.status(400).json({ success: false, message: 'orderItems must be a non-empty array' });
 
+        // ── Phone validation ──────────────────────────────────────────────────
+        const rawPhone = shippingAddress?.phoneNumber || shippingAddress?.phone || shippingAddress?.mobile || '';
+        const cleanPhone = String(rawPhone).replace(/\D/g, '').slice(-10);
+        if (!cleanPhone || cleanPhone.length !== 10) {
+            return res.status(400).json({
+                success: false,
+                message: 'shippingAddress.phoneNumber is required and must be a valid 10-digit number'
+            });
+        }
+
         // ── Enrich order items ────────────────────────────────────────────────
         const enrichedOrderItems = [];
         for (let item of orderItems) {
