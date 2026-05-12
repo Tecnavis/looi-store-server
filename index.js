@@ -4,7 +4,6 @@ const authRoutes = require("./Routes/authRoutes");
 const session = require("express-session");
 const passport = require("./config/passport");
 
-
 const cors    = require('cors');
 const express = require('express');
 
@@ -14,9 +13,6 @@ const uploadRoutes = require('./Routes/uploadRoutes');
 require('./config/connection');
 
 const app = express();
-
-
-
 
 // CORS
 app.use(cors({
@@ -35,17 +31,18 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// FIX #9: session secret moved to .env — never hardcode
 app.use(session({
-  secret: "secret",
+  secret: process.env.SESSION_SECRET || (() => { throw new Error('SESSION_SECRET must be set in .env'); })(),
   resave: false,
-  saveUninitialized: true,
+  saveUninitialized: false, // false is more secure — only saves sessions that are modified
 }));
 
 app.use(passport.initialize());
 app.use(passport.session());
 app.use("/api/auth", authRoutes);
 
-// ── Drop stale MongoDB indexes on startup (fixes E11000 shiprocket_order_id null) ──
+// Drop stale MongoDB indexes on startup
 const Order = require('./models/orderModel');
 setTimeout(async () => {
   try {
@@ -54,7 +51,7 @@ setTimeout(async () => {
   } catch (e) {
     console.error('[startup] Index cleanup error (non-fatal):', e.message);
   }
-}, 3000); // wait 3s for DB connection to establish
+}, 3000);
 
 // Routes
 app.use('/api/upload', uploadRoutes);
@@ -69,5 +66,3 @@ const PORT = process.env.PORT || 8000;
 app.listen(PORT, () => {
   console.log(`Server started at port ${PORT}`);
 });
-
-

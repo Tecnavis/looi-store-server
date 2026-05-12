@@ -26,7 +26,6 @@ exports.createOrder = async (req, res) => {
             razorpayPaymentId, email
         } = req.body;
 
-        // ── Validate ──────────────────────────────────────────────────────────
         const missing = [];
         if (!user)            missing.push('user');
         if (!orderItems)      missing.push('orderItems');
@@ -38,7 +37,6 @@ exports.createOrder = async (req, res) => {
         if (!Array.isArray(orderItems) || orderItems.length === 0)
             return res.status(400).json({ success: false, message: 'orderItems must be a non-empty array' });
 
-        // ── Phone validation ──────────────────────────────────────────────────
         const rawPhone = shippingAddress?.phoneNumber || shippingAddress?.phone || shippingAddress?.mobile || '';
         const cleanPhone = String(rawPhone).replace(/\D/g, '').slice(-10);
         if (!cleanPhone || cleanPhone.length !== 10) {
@@ -48,7 +46,6 @@ exports.createOrder = async (req, res) => {
             });
         }
 
-        // ── Enrich order items ────────────────────────────────────────────────
         const enrichedOrderItems = [];
         for (let item of orderItems) {
             if (!item.productName || !item.quantity || !item.price)
@@ -84,7 +81,6 @@ exports.createOrder = async (req, res) => {
             });
         }
 
-        // ── Build & save order ────────────────────────────────────────────────
         const orderData = {
             orderId:           generateOrderId(),
             user,
@@ -104,7 +100,6 @@ exports.createOrder = async (req, res) => {
         const order = await Order.create(orderData);
         console.log('Order saved _id:', order._id);
 
-        // ── Deduct stock (non-fatal) ──────────────────────────────────────────
         for (let item of enrichedOrderItems) {
             if (!item.productId || !item.size || !item.color) continue;
             try {
@@ -119,12 +114,10 @@ exports.createOrder = async (req, res) => {
             } catch (e) { console.error('Stock error (non-fatal):', e.message); }
         }
 
-        // ── Link to user (non-fatal) ──────────────────────────────────────────
         try {
             await User.findByIdAndUpdate(user, { $push: { orders: order._id } }, { new: true });
         } catch (e) { console.error('User link (non-fatal):', e.message); }
 
-        // ── Send customer confirmation email (non-fatal) ──────────────────────
         const recipientEmail = email || order.email;
         if (recipientEmail?.includes('@')) {
             const customerHtml = getCustomerOrderConfirmationHtml({
@@ -140,7 +133,6 @@ exports.createOrder = async (req, res) => {
             ).catch(e => console.error('Customer email (non-fatal):', e.message));
         }
 
-        // ── Send admin notification emails (non-fatal) ────────────────────────
         try {
             const notifSettings = await NotificationSettings.findOne();
             if (notifSettings && notifSettings.notifyOnNewOrder && notifSettings.adminEmails.length > 0) {
@@ -162,7 +154,6 @@ exports.createOrder = async (req, res) => {
             console.error('Admin notification (non-fatal):', notifErr.message);
         }
 
-        // ── Shiprocket push (AWAITED so errors surface) ───────────────────────
         console.log('\n[SR] >>> Starting Shiprocket push for', orderData.orderId);
         try {
             const sr = await postOrderToShiprocket({ ...orderData, _id: order._id });
@@ -171,7 +162,6 @@ exports.createOrder = async (req, res) => {
                 await Order.findByIdAndUpdate(order._id, { shiprocket_order_id: String(sr.order_id) });
             }
         } catch (srErr) {
-            // Log but don't fail the response — order is already saved in DB
             console.error('[SR] >>> Push FAILED for', orderData.orderId, ':', srErr.message);
         }
 
@@ -187,9 +177,8 @@ exports.createOrder = async (req, res) => {
     }
 };
 
-// ── Admin: manually re-push any order to Shiprocket ───────────────────────────
 exports.repushToShiprocket = async (req, res) => {
-    const { orderId } = req.params; // MongoDB _id
+    const { orderId } = req.params;
     try {
         const sr = await repushOrderById(orderId);
         return res.status(200).json({ success: true, message: 'Re-pushed to Shiprocket', shiprocket: sr });
@@ -248,7 +237,6 @@ exports.getOrdersByUser = async (req, res) => {
         const orders = await Order.find({ user: userId })
             .populate({ path: 'orderItems.productId', model: 'Product', select: 'name price coverImage' })
             .populate({ path: 'user', model: 'user', select: 'name email' });
-        // ✅ FIX: Return 200 with empty array so client shows "No orders" instead of an error
         if (!orders?.length) return res.status(200).json({ success: true, message: 'No orders found', orders: [] });
         res.status(200).json({ success: true, message: 'Orders retrieved', orders });
     } catch (error) {
@@ -325,9 +313,11 @@ exports.markOrderAsDelivered = async (req, res) => {
     }
 };
 
+// FIX #15: return 404 if order doesn't exist instead of silent 200
 exports.deleteOrderById = async (req, res) => {
     try {
-        await Order.findByIdAndDelete(req.params.orderId);
+        const deleted = await Order.findByIdAndDelete(req.params.orderId);
+        if (!deleted) return res.status(404).json({ success: false, message: 'Order not found' });
         res.status(200).json({ success: true, message: 'Order deleted' });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Failed to delete order', error: error.message });

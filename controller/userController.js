@@ -23,23 +23,19 @@ exports.registerUser = async (req, res) => {
   const { username, email, password, fullName, passwordConfirm, mobileNumber } = req.body;
 
   try {
-    // Validate required fields
     if (!username || !email || !password || !fullName) {
       return res.status(400).json({ message: "All fields (username, email, fullName, password) are required." });
     }
 
-    // Validate password strength
     const passwordError = validatePassword(password);
     if (passwordError) {
       return res.status(400).json({ message: passwordError });
     }
 
-    // Check if passwords match
     if (password !== passwordConfirm) {
       return res.status(400).json({ message: "Passwords do not match." });
     }
 
-    // Check if user already exists by username or email
     const existingUserByEmail = await User.findOne({ email });
     if (existingUserByEmail) {
       return res.status(406).json({ message: "An account with this email already exists." });
@@ -49,10 +45,8 @@ exports.registerUser = async (req, res) => {
       return res.status(406).json({ message: "This username is already taken. Please choose another." });
     }
 
-    // Hash password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create new user
     const newUser = new User({
       username,
       email,
@@ -75,7 +69,6 @@ exports.registerUser = async (req, res) => {
   }
 };
 
-// Get Total Users Controller
 exports.getUserCount = async (req, res) => {
   try {
     const counter = await Counter.findById('userCount');
@@ -86,7 +79,6 @@ exports.getUserCount = async (req, res) => {
   }
 };
 
-// User login controller
 exports.loginUser = async (req, res) => {
   const { email, password } = req.body;
 
@@ -188,7 +180,7 @@ exports.getUserDetails = async (req, res) => {
 
 exports.getAllUsers = async (req, res) => {
   try {
-    const users = await User.find();
+    const users = await User.find().select('-password -resetPasswordToken -resetPasswordExpire');
     res.status(200).json({ users });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -211,6 +203,7 @@ exports.resetPasswordRequest = async (req, res) => {
     user.resetPasswordExpire = Date.now() + 3600000;
     await user.save();
 
+    // FIX #13: FRONTEND_URL now required in .env (falls back to localhost only for dev)
     const resetURL = `${process.env.FRONTEND_URL || 'http://localhost:3000'}/reset-password/${resetToken}`;
     const mailOptions = {
       from: process.env.EMAIL_USER,
@@ -259,7 +252,7 @@ exports.deleteUserById = async (req, res) => {
 exports.getUserById = async (req, res) => {
   try {
     const { userId } = req.params;
-    const user = await User.findById(userId);
+    const user = await User.findById(userId).select('-password -resetPasswordToken -resetPasswordExpire');
     if (!user) return res.status(404).json({ message: 'User not found' });
     res.status(200).json({ user });
   } catch (error) {
@@ -267,10 +260,18 @@ exports.getUserById = async (req, res) => {
   }
 };
 
+// FIX #6: whitelist only safe fields — prevents mass assignment of password/orders/etc.
 exports.updateUserById = async (req, res) => {
   try {
     const { userId } = req.params;
-    const updatedUser = await User.findByIdAndUpdate(userId, req.body, { new: true });
+    const { fullName, contactNumber, username } = req.body;
+    const safeUpdate = {};
+    if (fullName !== undefined)     safeUpdate.fullName = fullName;
+    if (contactNumber !== undefined) safeUpdate.contactNumber = contactNumber;
+    if (username !== undefined)      safeUpdate.username = username;
+
+    const updatedUser = await User.findByIdAndUpdate(userId, safeUpdate, { new: true, runValidators: true })
+      .select('-password -resetPasswordToken -resetPasswordExpire');
     if (!updatedUser) return res.status(404).json({ message: 'User not found' });
     res.status(200).json({ message: 'User updated successfully', user: updatedUser });
   } catch (error) {

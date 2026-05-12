@@ -31,7 +31,6 @@ exports.addProduct = asyncHandler(async (req, res) => {
       colors: size.colors.map((color) => ({
         color: color.color,
         stock: color.stock,
-        // Store Cloudinary secure_url (file.path) instead of filename
         images: req.files
           .filter(file =>
             file.fieldname === 'productImages' &&
@@ -46,7 +45,6 @@ exports.addProduct = asyncHandler(async (req, res) => {
       name,
       oldPrice,
       price,
-      // Store Cloudinary URL for cover image
       coverImage: coverImageFile.path,
       sizes: formattedSizes,
       description,
@@ -78,10 +76,8 @@ exports.addProduct = asyncHandler(async (req, res) => {
 exports.getAllProducts = asyncHandler(async (req, res) => {
   try {
     const products = await Product.find();
-    if (!products || products.length === 0) {
-      return res.status(404).json({ message: 'No products found' });
-    }
-    return res.status(200).json({ message: 'Products retrieved successfully', products });
+    // FIX #11: return 200 with empty array instead of 404 when no products exist
+    return res.status(200).json({ message: 'Products retrieved successfully', products: products || [] });
   } catch (error) {
     return res.status(500).json({ message: 'Error retrieving products', error });
   }
@@ -157,7 +153,6 @@ exports.updateProduct = asyncHandler(async (req, res) => {
       formattedSizes = sizesData.map(size => ({
         size: size.size,
         colors: size.colors.map(color => {
-          // New uploaded images will have Cloudinary URLs (file.path)
           const newImages = req.files
             ? req.files
                 .filter(file => file.fieldname.startsWith(`size_${size.size}_color_${color.color}_image_`))
@@ -169,7 +164,6 @@ exports.updateProduct = asyncHandler(async (req, res) => {
       }));
     }
 
-    // Handle cover image update
     let coverImage;
     if (req.files && req.files.find(file => file.fieldname === 'coverImage')) {
       coverImage = req.files.find(file => file.fieldname === 'coverImage').path;
@@ -239,22 +233,25 @@ exports.getNewArrivals = asyncHandler(async (req, res) => {
       name: { $regex: searchQuery, $options: 'i' }
     }).sort({ createdAt: -1 }).populate('subcategory');
 
-    if (!newArrivals || newArrivals.length === 0) {
-      return res.status(404).json({ message: 'No new arrivals found' });
-    }
-    return res.status(200).json({ message: 'New arrivals retrieved successfully', products: newArrivals });
+    // FIX #12: return 200 with empty array instead of 404 when no new arrivals
+    return res.status(200).json({ message: 'New arrivals retrieved successfully', products: newArrivals || [] });
   } catch (error) {
     return res.status(500).json({ message: 'Error retrieving new arrivals', error });
   }
 });
 
+// FIX #2: controller now correctly reads id from req.params (route changed to /similar-product/:id)
 exports.getProductAndSimilar = asyncHandler(async (req, res) => {
   const { id } = req.params;
+  if (!id) {
+    return res.status(400).json({ message: 'Product id is required' });
+  }
   try {
     const product = await Product.findById(id).populate('subcategory');
     if (!product) {
       return res.status(404).json({ message: 'Product not found' });
     }
+
     const similarProducts = await Product.find({
       subcategory: product.subcategory._id,
       _id: { $ne: product._id }
