@@ -13,6 +13,7 @@ const AddPrint=require('../controller/printController')
 const cartController=require('../controller/cartContoller');
 const wishlistController=require('../controller/WishlistController')
 const userController=require('../controller/userController')
+const otpController=require('../controller/otpController')
 const razorpayController=require('../controller/razorpayController')
 const orderController=require('../controller/orderController')
 const invoiceController=require('../controller/invoiceController')
@@ -111,6 +112,10 @@ router.delete('/delete-user/:userId/address/:addressId', jwtMiddleware, userCont
 router.put('/update-user/:userId/address/:addressId', jwtMiddleware, userController.editUserAddress);
 router.post('/forgot-password',userController.resetPasswordRequest);
 router.post('/reset-password/:token',userController.resetPassword);
+
+// OTP-based passwordless auth (email or phone) — used by the new login/signup flow
+router.post('/send-otp', otpController.sendOtp);
+router.post('/verify-otp', otpController.verifyOtp);
 
 // payment
 router.post('/order',jwtMiddleware,razorpayController.order);

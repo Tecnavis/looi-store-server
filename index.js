@@ -44,9 +44,11 @@ app.use("/api/auth", authRoutes);
 
 // Drop stale MongoDB indexes on startup
 const Order = require('./models/orderModel');
+const User = require('./models/userModel');
 setTimeout(async () => {
   try {
     await Order.dropBadIndexes();
+    await User.fixIndexes();
     console.log('[startup] Index cleanup complete');
   } catch (e) {
     console.error('[startup] Index cleanup error (non-fatal):', e.message);

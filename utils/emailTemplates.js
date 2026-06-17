@@ -294,4 +294,49 @@ const getAdminNewOrderHtml = (order) => {
 </html>`;
 };
 
-module.exports = { getCustomerOrderConfirmationHtml, getAdminNewOrderHtml };
+/**
+ * OTP verification email — used for both login and registration.
+ */
+const getOtpEmailHtml = (otp, expiryMinutes, purpose) => {
+  const heading = purpose === 'register' ? 'Verify your email' : 'Your login code';
+  return `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8" /></head>
+<body style="margin:0; padding:0; background:#f4f4f7; font-family:'Helvetica Neue', Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7; padding:32px 0;">
+    <tr>
+      <td align="center">
+        <table width="420" cellpadding="0" cellspacing="0" style="background:#ffffff; border-radius:12px; overflow:hidden; box-shadow:0 4px 24px rgba(0,0,0,0.06);">
+          <tr>
+            <td style="background:#007fff; padding:28px 32px; text-align:center;">
+              <h1 style="margin:0; color:#ffffff; font-size:20px; font-weight:700; letter-spacing:2px;">LOOI</h1>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:32px 32px 8px; text-align:center;">
+              <p style="margin:0 0 8px; font-size:15px; color:#1a1a1a; font-weight:600;">${heading}</p>
+              <p style="margin:0; font-size:13px; color:#888;">Use the code below to continue. It expires in ${expiryMinutes} minutes.</p>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:24px 32px; text-align:center;">
+              <div style="display:inline-block; background:#f4f7ff; border:1px solid #d8e6ff; border-radius:10px; padding:16px 28px;">
+                <span style="font-size:32px; font-weight:700; letter-spacing:8px; color:#007fff;">${otp}</span>
+              </div>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:8px 32px 32px; text-align:center;">
+              <p style="margin:0; font-size:12px; color:#aaa;">If you didn't request this code, you can safely ignore this email.</p>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:16px 0 0; font-size:11px; color:#bbb;">© ${new Date().getFullYear()} LOOI Store</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+};
+
+module.exports = { getCustomerOrderConfirmationHtml, getAdminNewOrderHtml, getOtpEmailHtml };
