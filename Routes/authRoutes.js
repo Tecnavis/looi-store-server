@@ -15,13 +15,13 @@ router.get(
 router.get(
   "/google/callback",
   passport.authenticate("google", {
-    failureRedirect: "https://looi.in/login",
+    failureRedirect: "https://looi.in/login-register",
     session: false,
   }),
   async (req, res) => {
     try {
       if (!req.user) {
-        return res.redirect("https://looi.in/login?error=user_not_found");
+        return res.redirect("https://looi.in/login-register?error=user_not_found");
       }
 
       const token = generateToken(req.user);
@@ -31,7 +31,7 @@ router.get(
       );
     } catch (err) {
       console.error("❌ CALLBACK ERROR:", err);
-      return res.redirect("https://looi.in/login?error=server_error");
+      return res.redirect("https://looi.in/login-register?error=server_error");
     }
   }
 );
