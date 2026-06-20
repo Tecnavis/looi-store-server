@@ -127,6 +127,15 @@ exports.sendOtp = async (req, res) => {
     if (err.message && err.message.includes('Twilio')) {
       return res.status(503).json({ message: 'SMS service is not configured yet. Please try email instead.' });
     }
+    if (err.message && err.message.includes('Email is not configured')) {
+      console.error('[sendOtp] EMAIL_USER/EMAIL_PASS missing or invalid on this server instance.');
+      return res.status(503).json({ message: 'Email service is temporarily unavailable. Please try phone instead, or try again shortly.' });
+    }
+    // Gmail-specific auth failures (bad/revoked App Password, 2FA not set up, etc.)
+    if (err.responseCode === 535 || (err.message && /invalid login|username and password not accepted/i.test(err.message))) {
+      console.error('[sendOtp] Gmail authentication failed — check EMAIL_USER/EMAIL_PASS (must be an App Password).');
+      return res.status(503).json({ message: 'Email service is temporarily unavailable. Please try phone instead, or try again shortly.' });
+    }
     return res.status(500).json({ message: 'Failed to send OTP. Please try again.' });
   }
 };
