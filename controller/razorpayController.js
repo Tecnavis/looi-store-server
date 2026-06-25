@@ -5,6 +5,11 @@ const Order = require('../models/orderModel');
 
 exports.order = async(req, res) => {
     try {
+        if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_SECRET_KEY) {
+            console.error('[Razorpay] Missing RAZORPAY_KEY_ID / RAZORPAY_SECRET_KEY in environment');
+            return res.status(500).json({ success: false, message: 'Payment gateway is not configured on the server.' });
+        }
+
         const razorpay = new Razorpay({
             key_id: process.env.RAZORPAY_KEY_ID,
             key_secret: process.env.RAZORPAY_SECRET_KEY,
@@ -23,7 +28,7 @@ exports.order = async(req, res) => {
             receipt: receipt || `receipt_${Date.now()}`,
         };
 
-        console.log('[Razorpay] Creating order:', options);
+        console.log('[Razorpay] Creating order:', options, '| using key_id:', process.env.RAZORPAY_KEY_ID?.slice(0, 12) + '...');
         const order = await razorpay.orders.create(options);
         if (!order) {
             return res.status(500).json({ success: false, message: 'Failed to create Razorpay order' });
@@ -31,8 +36,16 @@ exports.order = async(req, res) => {
         console.log('[Razorpay] Order created:', order.id);
         res.json(order);
     } catch (error) {
-        console.error('[Razorpay] Order creation error:', error);
-        res.status(500).json({ success: false, message: error.error?.description || error.message || 'Razorpay error' });
+        // error.statusCode / error.error.code tell us WHY Razorpay rejected the
+        // request — log them so "Authentication failed" doesn't keep showing up
+        // as a mystery. Common causes: wrong/regenerated key pair, key_id and
+        // key_secret from different accounts, or live mode not yet activated.
+        console.error('[Razorpay] Order creation error — statusCode:', error.statusCode, '| code:', error.error?.code, '| description:', error.error?.description, '| raw:', error.message);
+        const description = error.error?.description || error.message || 'Razorpay error';
+        const friendlyMessage = error.statusCode === 401
+            ? 'Payment gateway rejected the request (invalid API credentials). Please contact support.'
+            : description;
+        res.status(500).json({ success: false, message: friendlyMessage });
     }
 };
 
