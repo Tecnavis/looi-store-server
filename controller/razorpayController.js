@@ -1,5 +1,5 @@
 const Razorpay = require('razorpay')
-require("dotenv").config()
+require("dotenv").config({ path: require('path').join(__dirname, '..', '.env') })
 const crypto = require("crypto")
 const Order = require('../models/orderModel');
 

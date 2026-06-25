@@ -1,4 +1,20 @@
-require('dotenv').config();
+require('dotenv').config({ path: require('path').join(__dirname, '.env') });
+
+// Sanity check: confirm critical env vars actually loaded. On shared hosting
+// the Node process's working directory can differ from the app folder, which
+// silently breaks `require('dotenv').config()` (no error — process.env vars
+// just stay undefined). This log makes that failure mode visible immediately
+// at boot instead of only showing up later as "Payment gateway is not
+// configured on the server" on a customer's checkout screen.
+const REQUIRED_ENV_VARS = ['RAZORPAY_KEY_ID', 'RAZORPAY_SECRET_KEY', 'SESSION_SECRET', 'CONNECTION_STRING', 'JWT_SECRET'];
+const missingEnvVars = REQUIRED_ENV_VARS.filter((key) => !process.env[key]);
+if (missingEnvVars.length > 0) {
+  console.error(`[startup] WARNING: .env did not load expected variables: ${missingEnvVars.join(', ')}.`);
+  console.error(`[startup] Expected .env at: ${require('path').join(__dirname, '.env')}`);
+  console.error('[startup] Check that this file exists on the server and that the process has permission to read it.');
+} else {
+  console.log('[startup] .env loaded successfully — all required variables present.');
+}
 
 const authRoutes = require("./Routes/authRoutes");
 const session = require("express-session");
