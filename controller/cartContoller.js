@@ -296,7 +296,7 @@ exports.getCart = async (req, res) => {
 
 exports.updateCart = async (req, res) => {
   try {
-    const { size, quantity } = req.body;
+    const { size, color, quantity } = req.body;
     const productId = req.params.productId;
     const userId = req.user._id; // Assuming you have user information from authentication
 
@@ -313,10 +313,15 @@ exports.updateCart = async (req, res) => {
       return res.status(404).json({ message: 'Cart not found' });
     }
 
-    // Find the item in the cart by productId and size
-    const itemIndex = cart.items.findIndex(item =>
-      item.product.toString() === productId && item.size === size
-    );
+    // Find the item in the cart by productId, size, AND color (when provided).
+    // Matching on productId + size alone can hit the wrong line item if the
+    // same product/size exists in more than one color.
+    const itemIndex = cart.items.findIndex(item => {
+      if (item.product.toString() !== productId) return false;
+      if (item.size !== size) return false;
+      if (color !== undefined && item.color !== color) return false;
+      return true;
+    });
 
     if (itemIndex < 0) {
       return res.status(404).json({ message: 'Item not found in cart' });
@@ -365,6 +370,10 @@ exports.deleteCart = async (req, res) => {
   try {
     const userId = req.user._id; // Assuming user ID is stored in req.user
     const productId = req.params.productId;
+    // Optional — sent by the client so the EXACT size/color variant is removed.
+    // Without these, removing one variant of a product could silently delete
+    // (or leave behind) a different size/color of the same product.
+    const { size, color } = req.query;
 
     // Check if productId is provided
     if (!productId) {
@@ -379,10 +388,15 @@ exports.deleteCart = async (req, res) => {
       return res.status(404).json({ message: 'Cart not found' });
     }
 
-    // Check if the product exists in the cart
-    const productIndex = cart.items.findIndex(
-      item => item.product.toString() === productId
-    );
+    // Match on product (+ size/color when provided) so only the exact
+    // line item the user removed is deleted, not every line item that
+    // happens to share the same product but a different size/color.
+    const productIndex = cart.items.findIndex((item) => {
+      if (item.product.toString() !== productId) return false;
+      if (size && item.size !== size) return false;
+      if (color && item.color !== color) return false;
+      return true;
+    });
 
     // If product not found in cart
     if (productIndex === -1) {

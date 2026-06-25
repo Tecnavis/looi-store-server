@@ -277,6 +277,23 @@ exports.cancelOrder = async (req, res) => {
             await cancelOrderInShiprocket({ orderId: order.orderId, shiprocket_order_id: order.shiprocket_order_id });
         } catch (e) { console.error('SR cancel (non-fatal):', e.message); }
 
+        // Give the stock back — it was deducted when the order was placed
+        // (see createOrder), so cancelling should release it again rather
+        // than leaving it permanently unavailable.
+        for (const item of order.orderItems) {
+            if (!item.productId || !item.size || !item.color) continue;
+            try {
+                const product = await Product.findById(item.productId);
+                if (!product) continue;
+                const sizeObj  = product.sizes?.find(s => s.size === item.size);
+                const colorObj = sizeObj?.colors?.find(c => c.color === item.color);
+                if (colorObj) {
+                    colorObj.stock = (colorObj.stock || 0) + item.quantity;
+                    await product.save();
+                }
+            } catch (e) { console.error('Stock restore error (non-fatal):', e.message); }
+        }
+
         order.orderStatus = 'Cancelled';
         order.cancellationDate = new Date();
         order.cancellationReason = req.body.reason || 'Customer requested';

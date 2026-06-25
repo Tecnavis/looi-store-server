@@ -55,6 +55,16 @@ setTimeout(async () => {
   }
 }, 3000);
 
+// Periodically empty carts that have been abandoned for a while (see
+// services/cartCleanupService.js for the reasoning and config knobs).
+const { startCartCleanupJob } = require('./services/cartCleanupService');
+startCartCleanupJob();
+
+// Periodically cancel unpaid Razorpay orders and release their reserved
+// stock (see services/abandonedPaymentService.js).
+const { startAbandonedPaymentCleanupJob } = require('./services/abandonedPaymentService');
+startAbandonedPaymentCleanupJob();
+
 // Routes
 app.use('/api/upload', uploadRoutes);
 app.use('/api', router);
