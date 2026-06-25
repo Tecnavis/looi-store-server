@@ -3,6 +3,38 @@ require("dotenv").config()
 const crypto = require("crypto")
 const Order = require('../models/orderModel');
 
+/**
+ * Pings Razorpay with a harmless, real API call (fetching the orders list,
+ * 1 result) to confirm RAZORPAY_KEY_ID / RAZORPAY_SECRET_KEY are a valid,
+ * matching pair. Meant to be called once at server startup so a stale or
+ * regenerated key shows up clearly in the deploy logs — e.g. "live key was
+ * regenerated in the Razorpay Dashboard but .env wasn't updated" — instead
+ * of only surfacing later as "Authentication failed" on a customer's
+ * checkout screen.
+ */
+exports.verifyRazorpayCredentials = async () => {
+    if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_SECRET_KEY) {
+        console.error('[Razorpay] Startup check: RAZORPAY_KEY_ID / RAZORPAY_SECRET_KEY missing from environment. Payments will not work.');
+        return;
+    }
+    try {
+        const razorpay = new Razorpay({
+            key_id: process.env.RAZORPAY_KEY_ID,
+            key_secret: process.env.RAZORPAY_SECRET_KEY,
+        });
+        await razorpay.orders.all({ count: 1 });
+        console.log('[Razorpay] Startup check: credentials are valid ✓ (key_id:', process.env.RAZORPAY_KEY_ID.slice(0, 12) + '...)');
+    } catch (error) {
+        console.error(
+            '[Razorpay] Startup check FAILED — credentials are invalid or mismatched.',
+            'statusCode:', error.statusCode, '| code:', error.error?.code, '| description:', error.error?.description,
+            '\n  → Most likely cause: the live key was regenerated in the Razorpay Dashboard',
+            '\n    (Settings → API Keys) but the server .env was not updated to match.',
+            '\n    Current key_id in use:', process.env.RAZORPAY_KEY_ID
+        );
+    }
+};
+
 exports.order = async(req, res) => {
     try {
         if (!process.env.RAZORPAY_KEY_ID || !process.env.RAZORPAY_SECRET_KEY) {

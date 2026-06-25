@@ -65,6 +65,12 @@ startCartCleanupJob();
 const { startAbandonedPaymentCleanupJob } = require('./services/abandonedPaymentService');
 startAbandonedPaymentCleanupJob();
 
+// Verify Razorpay key_id/key_secret actually work against Razorpay's API
+// right now — catches "key was regenerated in the dashboard but .env wasn't
+// updated" at deploy time instead of at a customer's checkout.
+const { verifyRazorpayCredentials } = require('./controller/razorpayController');
+setTimeout(verifyRazorpayCredentials, 5000);
+
 // Routes
 app.use('/api/upload', uploadRoutes);
 app.use('/api', router);
