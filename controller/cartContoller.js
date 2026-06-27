@@ -125,14 +125,20 @@ exports.addToCart = async (req, res) => {
     const normalizedColor = (color || '').trim();
     const qty             = Number(quantity) || 1;
 
-    const itemData = {
+    // Each unit becomes its own cart line item (quantity is always 1 per row).
+    // Adding 3 of the same product — whether via 3 separate "Add to Cart"
+    // clicks or one click with quantity=3 selected — produces 3 separate
+    // rows in the cart, each independently removable, rather than one row
+    // with quantity incremented. This intentionally replaces the previous
+    // "merge into existing row" behavior.
+    const newItems = Array.from({ length: qty }, () => ({
       product:     productId,
       productId:   String(p._id),
       productName: p.name       || '',
       coverImage:  p.coverImage || '',
       size:        normalizedSize,
       color:       normalizedColor,
-      quantity:    qty,
+      quantity:    1,
       price:       Number(p.price)  || 0,
       hsn:         p.hsn            || '',
       sku:         p.sku            || '',
@@ -140,42 +146,16 @@ exports.addToCart = async (req, res) => {
       width:       Number(p.width)  || 0,
       height:      Number(p.height) || 0,
       weight:      Number(p.weight) || 0,
-    };
+    }));
 
-    // Use findOneAndUpdate to avoid Mongoose re-validating ALL existing cart items
-    // Check if this exact item (product+size+color) already exists
-    const cartWithItem = await Cart.findOne({
-      user: userId,
-      'items.product': productId,
-      'items.size':    normalizedSize,
-      'items.color':   normalizedColor,
-    });
-
-    let savedCart;
-
-    if (cartWithItem) {
-      // Item exists → increment quantity using atomic update (no full re-validation)
-      savedCart = await Cart.findOneAndUpdate(
-        {
-          user: userId,
-          'items.product': productId,
-          'items.size':    normalizedSize,
-          'items.color':   normalizedColor,
-        },
-        { $inc: { 'items.$.quantity': qty } },
-        { new: true }
-      ).populate('items.product');
-    } else {
-      // Item doesn't exist → push new item (upsert cart doc if needed)
-      savedCart = await Cart.findOneAndUpdate(
-        { user: userId },
-        {
-          $push: { items: itemData },
-          $setOnInsert: { user: userId, totalPrice: 0 },
-        },
-        { new: true, upsert: true }
-      ).populate('items.product');
-    }
+    const savedCart = await Cart.findOneAndUpdate(
+      { user: userId },
+      {
+        $push: { items: { $each: newItems } },
+        $setOnInsert: { user: userId, totalPrice: 0 },
+      },
+      { new: true, upsert: true }
+    ).populate('items.product');
 
     // Recalculate totalPrice
     if (savedCart) {
@@ -369,15 +349,18 @@ exports.updateCart = async (req, res) => {
 exports.deleteCart = async (req, res) => {
   try {
     const userId = req.user._id; // Assuming user ID is stored in req.user
-    const productId = req.params.productId;
-    // Optional — sent by the client so the EXACT size/color variant is removed.
-    // Without these, removing one variant of a product could silently delete
-    // (or leave behind) a different size/color of the same product.
+    // This is the cart line item's own _id (each row — even duplicates of the
+    // same product/size/color — now has its own unique _id, since adding the
+    // same product twice creates two separate rows instead of merging into
+    // one row with quantity 2). The param is still named productId for
+    // backward compatibility with existing client calls.
+    const itemId = req.params.productId;
+    // Optional fallback, kept for any older client still matching by
+    // product+size+color instead of by line item id.
     const { size, color } = req.query;
 
-    // Check if productId is provided
-    if (!productId) {
-      return res.status(400).json({ message: 'ProductId is required' });
+    if (!itemId) {
+      return res.status(400).json({ message: 'Item id is required' });
     }
 
     // Find the user's cart
@@ -388,15 +371,21 @@ exports.deleteCart = async (req, res) => {
       return res.status(404).json({ message: 'Cart not found' });
     }
 
-    // Match on product (+ size/color when provided) so only the exact
-    // line item the user removed is deleted, not every line item that
-    // happens to share the same product but a different size/color.
-    const productIndex = cart.items.findIndex((item) => {
-      if (item.product.toString() !== productId) return false;
-      if (size && item.size !== size) return false;
-      if (color && item.color !== color) return false;
-      return true;
-    });
+    // Prefer matching the exact line item by its own _id — this is the only
+    // way to remove precisely one of several identical (same product/size/
+    // color) rows without affecting the others.
+    let productIndex = cart.items.findIndex((item) => item._id.toString() === itemId);
+
+    // Fallback for older calls that still pass the product's _id instead of
+    // the line item's _id — removes the first matching row only.
+    if (productIndex === -1) {
+      productIndex = cart.items.findIndex((item) => {
+        if (item.product.toString() !== itemId) return false;
+        if (size && item.size !== size) return false;
+        if (color && item.color !== color) return false;
+        return true;
+      });
+    }
 
     // If product not found in cart
     if (productIndex === -1) {
