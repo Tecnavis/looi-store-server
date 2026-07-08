@@ -40,6 +40,7 @@ router.post('/add-category',jwtMiddleware,upload.array('images',1),categoryContr
 router.get('/get-category',  categoryController.getCategories);
 router.get('/get-categoryid/:id', jwtMiddleware, categoryController.getCategoriesById);
 router.put('/update-categoryid/:id', jwtMiddleware,categoryController.updateCategoriesById);
+router.put('/update-category-bestseller/:id', jwtMiddleware, categoryController.updateCategoryBestSeller);
 router.delete('/delete-category/:id',jwtMiddleware, categoryController.deleteCategoriesById);
 router.get('/categoriescount',jwtMiddleware,categoryController.countCategories);
 

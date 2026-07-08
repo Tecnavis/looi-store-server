@@ -82,6 +82,34 @@ exports.updateCategoriesById = async (req, res) => {
   }
 };
 
+exports.updateCategoryBestSeller = async (req, res) => {
+  const { id } = req.params;
+  const { isBestSeller } = req.body;
+
+  try {
+    if (!id.match(/^[0-9a-fA-F]{24}$/)) {
+      return res.status(400).json({ message: 'Invalid ID format.' });
+    }
+    if (typeof isBestSeller !== 'boolean') {
+      return res.status(400).json({ message: 'isBestSeller must be true or false.' });
+    }
+
+    const category = await CategoryModel.findById(id);
+    if (!category) {
+      return res.status(404).json({ message: 'Category not found.' });
+    }
+
+    const updatedCategory = await CategoryModel.findByIdAndUpdate(
+      id,
+      { isBestSeller },
+      { new: true }
+    );
+    res.status(200).json({ message: 'Updated', category: updatedCategory });
+  } catch (err) {
+    res.status(500).json({ message: 'Error updating best seller status', error: err.message });
+  }
+};
+
 exports.deleteCategoriesById = asyncHandler(async (req, res) => {
   const { id } = req.params;
   try {
