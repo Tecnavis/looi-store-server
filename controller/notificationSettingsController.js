@@ -5,7 +5,7 @@ exports.getSettings = async (req, res) => {
     try {
         let settings = await NotificationSettings.findOne();
         if (!settings) {
-            settings = await NotificationSettings.create({ adminEmails: [], notifyOnNewOrder: true });
+            settings = await NotificationSettings.create({ adminEmails: [], notifyOnNewOrder: true, notifyOnOutOfStock: true });
         }
         res.status(200).json({ success: true, settings });
     } catch (error) {
@@ -16,7 +16,7 @@ exports.getSettings = async (req, res) => {
 // PUT /api/notification-settings
 exports.updateSettings = async (req, res) => {
     try {
-        const { adminEmails, notifyOnNewOrder } = req.body;
+        const { adminEmails, notifyOnNewOrder, notifyOnOutOfStock } = req.body;
 
         if (!Array.isArray(adminEmails)) {
             return res.status(400).json({ success: false, message: 'adminEmails must be an array' });
@@ -36,6 +36,7 @@ exports.updateSettings = async (req, res) => {
 
         settings.adminEmails = adminEmails;
         settings.notifyOnNewOrder = notifyOnNewOrder !== undefined ? notifyOnNewOrder : true;
+        settings.notifyOnOutOfStock = notifyOnOutOfStock !== undefined ? notifyOnOutOfStock : true;
         settings.updatedAt = new Date();
         await settings.save();
 

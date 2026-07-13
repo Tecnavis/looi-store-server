@@ -15,6 +15,10 @@ const notificationSettingsSchema = new mongoose.Schema({
         type: Boolean,
         default: true
     },
+    notifyOnOutOfStock: {
+        type: Boolean,
+        default: true
+    },
     updatedAt: {
         type: Date,
         default: Date.now

@@ -339,4 +339,47 @@ const getOtpEmailHtml = (otp, expiryMinutes, purpose) => {
 </html>`;
 };
 
-module.exports = { getCustomerOrderConfirmationHtml, getAdminNewOrderHtml, getOtpEmailHtml };
+/**
+ * Admin out-of-stock notification email template
+ */
+const getAdminOutOfStockHtml = (product) => {
+    return `<!DOCTYPE html>
+<html>
+<body style="margin:0; padding:0; background:#f4f4f7; font-family: Arial, sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f4f4f7; padding:32px 0;">
+    <tr>
+      <td align="center">
+        <table width="480" cellpadding="0" cellspacing="0" style="background:#fff; border-radius:12px; overflow:hidden; box-shadow:0 2px 8px rgba(0,0,0,0.06);">
+          <tr>
+            <td style="background:#cc3333; padding:20px 32px;">
+              <span style="color:#fff; font-size:18px; font-weight:700;">⚠️ Product Out of Stock</span>
+            </td>
+          </tr>
+          <tr>
+            <td style="padding:28px 32px;">
+              <p style="margin:0 0 16px; font-size:14px; color:#333;">
+                The following product has just run out of stock across all sizes and colors:
+              </p>
+              <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9f9fb; border-radius:8px; padding:16px;">
+                <tr>
+                  <td style="padding:8px 16px; font-size:14px; color:#333;">
+                    <strong>${product.name || 'Product'}</strong><br/>
+                    <span style="color:#888; font-size:12px;">Product ID: ${product._id}</span>
+                  </td>
+                </tr>
+              </table>
+              <p style="margin:20px 0 0; font-size:13px; color:#888;">
+                Restock this item in the admin panel to make it available for purchase again.
+              </p>
+            </td>
+          </tr>
+        </table>
+        <p style="margin:16px 0 0; font-size:11px; color:#bbb;">© ${new Date().getFullYear()} LOOI Store</p>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>`;
+};
+
+module.exports = { getCustomerOrderConfirmationHtml, getAdminNewOrderHtml, getOtpEmailHtml, getAdminOutOfStockHtml };

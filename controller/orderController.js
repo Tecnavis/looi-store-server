@@ -5,6 +5,7 @@ const asyncHandler = require('express-async-handler');
 const OrderCount = require('../models/orderCountModel');
 const sendEmail = require('../utils/emailService');
 const NotificationSettings = require('../models/notificationSettingsModel');
+const { notifyOutOfStock } = require('../utils/stockNotifier');
 const { getCustomerOrderConfirmationHtml, getAdminNewOrderHtml } = require('../utils/emailTemplates');
 const { postOrderToShiprocket, cancelOrderInShiprocket, repushOrderById } = require('../utils/shiprocketService');
 
@@ -108,8 +109,12 @@ exports.createOrder = async (req, res) => {
                 const sizeObj  = product.sizes?.find(s => s.size === item.size);
                 const colorObj = sizeObj?.colors?.find(c => c.color === item.color);
                 if (colorObj) {
+                    const wasInStock = product.totalStock > 0;
                     colorObj.stock = Math.max(0, colorObj.stock - item.quantity);
-                    await product.save();
+                    await product.save(); // pre-save hook recomputes product.totalStock
+                    if (wasInStock && product.totalStock === 0) {
+                        notifyOutOfStock(product).catch(e => console.error('Out-of-stock notify (non-fatal):', e.message));
+                    }
                 }
             } catch (e) { console.error('Stock error (non-fatal):', e.message); }
         }

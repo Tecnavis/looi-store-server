@@ -1,6 +1,7 @@
 const Product = require('../models/productModel');
 const asyncHandler = require('express-async-handler');
 const mongoose = require('mongoose');
+const { notifyOutOfStock } = require('../utils/stockNotifier');
 
 const generateProductId = () => {
   return `PROD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`;
@@ -187,6 +188,22 @@ exports.updateProduct = asyncHandler(async (req, res) => {
       ...(weight !== undefined && weight !== '' && { weight: Number(weight) }),
     };
 
+    // findByIdAndUpdate bypasses the model's pre('save') hook, so totalStock
+    // must be recomputed manually whenever sizes/colors are edited here.
+    let previousTotalStock = null;
+    if (formattedSizes.length > 0) {
+      let newTotalStock = 0;
+      formattedSizes.forEach(size => {
+        size.colors.forEach(color => {
+          newTotalStock += Number(color.stock) || 0;
+        });
+      });
+      updateFields.totalStock = newTotalStock;
+
+      const existingForStock = await Product.findById(id).select('totalStock');
+      previousTotalStock = existingForStock ? existingForStock.totalStock : null;
+    }
+
     console.log('Update fields:', updateFields);
 
     const updatedProduct = await Product.findByIdAndUpdate(id, updateFields, {
@@ -196,6 +213,10 @@ exports.updateProduct = asyncHandler(async (req, res) => {
 
     if (!updatedProduct) {
       return res.status(404).json({ message: 'Product not found' });
+    }
+
+    if (previousTotalStock !== null && previousTotalStock > 0 && updatedProduct.totalStock === 0) {
+      notifyOutOfStock(updatedProduct).catch(e => console.error('Out-of-stock notify (non-fatal):', e.message));
     }
 
     return res.status(200).json({ message: 'Product updated successfully', product: updatedProduct });
