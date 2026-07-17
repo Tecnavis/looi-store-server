@@ -100,7 +100,7 @@ exports.getProductById = asyncHandler(async (req, res) => {
 exports.updateProduct = asyncHandler(async (req, res) => {
   const { id } = req.params;
   let {
-    name, price, sizes: sizesJson, description,
+    name, oldPrice, price, sizes: sizesJson, description,
     countryOfOrigin, manufacturer, packedBy, commodity,
     maincategory, subcategory,
     length, width, height, weight
@@ -172,6 +172,7 @@ exports.updateProduct = asyncHandler(async (req, res) => {
 
     const updateFields = {
       ...(name && { name }),
+      ...(oldPrice !== undefined && oldPrice !== '' && { oldPrice: Number(oldPrice) }),
       ...(price && { price: Number(price) }),
       ...(coverImage && { coverImage }),
       ...(formattedSizes.length > 0 && { sizes: formattedSizes }),
