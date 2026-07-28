@@ -45,7 +45,7 @@ const productSchema = new mongoose.Schema({
   description: {
     type: String,
     required: false,
-    maxlength: 500,
+    maxlength: 5000,
   },
   countryOfOrigin: {
     type: String,
